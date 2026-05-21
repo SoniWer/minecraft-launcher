@@ -40,6 +40,17 @@ CONTENT_TYPES: list[tuple[str, str]] = [
 
 POPULAR_LIMIT = 25
 
+LOADER_FILTER_OPTIONS: list[tuple[str, str]] = [
+    ("launcher", "Как в лаунчере"),
+    ("any", "Любой"),
+    ("fabric", "Fabric"),
+    ("forge", "Forge"),
+    ("neoforge", "NeoForge"),
+    ("quilt", "Quilt"),
+]
+LOADER_FILTER_LABELS = [label for _, label in LOADER_FILTER_OPTIONS]
+LOADER_FILTER_BY_LABEL = {label: key for key, label in LOADER_FILTER_OPTIONS}
+
 
 class ModrinthBrowser(tk.Toplevel):
     def __init__(
@@ -75,6 +86,7 @@ class ModrinthBrowser(tk.Toplevel):
         self._enrich_generation = 0
 
         self._build_ui()
+        self._update_loader_filter_state()
         theme_for_child(self, parent)
         self.transient(parent)
         self.grab_set()
@@ -122,7 +134,21 @@ class ModrinthBrowser(tk.Toplevel):
         type_combo.pack(side="left", padx=(4, 12))
         type_combo.bind("<<ComboboxSelected>>", self._on_type_changed)
 
-        ttk.Label(top, text="Поиск:").pack(side="left")
+        ttk.Label(top, text="Загрузчик:").pack(side="left", padx=(8, 0))
+        self.loader_filter_var = tk.StringVar(value="Как в лаунчере")
+        self.loader_filter_combo = ttk.Combobox(
+            top,
+            textvariable=self.loader_filter_var,
+            values=LOADER_FILTER_LABELS,
+            width=16,
+            state="readonly",
+        )
+        self.loader_filter_combo.pack(side="left", padx=4)
+        self.loader_filter_combo.bind(
+            "<<ComboboxSelected>>", lambda _e: self._search(reset=True)
+        )
+
+        ttk.Label(top, text="Поиск:").pack(side="left", padx=(8, 0))
         self.query_var = tk.StringVar()
         query_entry = ttk.Entry(top, textvariable=self.query_var, width=32)
         query_entry.pack(side="left", padx=4)
@@ -136,12 +162,11 @@ class ModrinthBrowser(tk.Toplevel):
         )
         self.more_btn.pack(side="left")
 
-        mc_version = self.get_mc_version() or "?"
-        loader = self.get_loader_id()
-        hint = f"Версия MC: {mc_version} · папка сборки · ✓ = уже установлено"
-        if loader != "vanilla":
-            hint += f" · загрузчик модов: {loader}"
-        ttk.Label(self, text=hint, foreground="gray").pack(anchor="w", padx=10)
+        self.hint_mc_var = tk.StringVar()
+        ttk.Label(self, textvariable=self.hint_mc_var, foreground="gray").pack(
+            anchor="w", padx=10
+        )
+        self._update_search_hint()
 
         list_frame = ttk.Frame(self)
         list_frame.pack(fill="both", expand=True, padx=10, pady=4)
@@ -205,9 +230,38 @@ class ModrinthBrowser(tk.Toplevel):
         return LOADER_IDS.get(loader_id)
 
     def _api_loader(self) -> str | None:
-        if self._content_type() in ("mod", "modpack"):
+        project_type = self._content_type()
+        if project_type not in ("mod", "modpack"):
+            return None
+
+        choice = LOADER_FILTER_BY_LABEL.get(
+            self.loader_filter_var.get(), "launcher"
+        )
+        if choice == "any":
+            return None
+        if choice == "launcher":
             return self._modrinth_loader()
-        return None
+        return LOADER_IDS.get(choice, choice)
+
+    def _update_loader_filter_state(self) -> None:
+        if self._content_type() in ("mod", "modpack"):
+            self.loader_filter_combo.configure(state="readonly")
+        else:
+            self.loader_filter_combo.configure(state="disabled")
+
+    def _update_search_hint(self) -> None:
+        mc_version = self.get_mc_version() or "?"
+        hint = f"Версия MC: {mc_version} · ✓ = уже установлено"
+        project_type = self._content_type()
+        if project_type in ("mod", "modpack"):
+            loader = self._api_loader()
+            filter_label = self.loader_filter_var.get()
+            if loader:
+                hint += f" · фильтр: {loader} ({filter_label})"
+            else:
+                hint += f" · фильтр загрузчика: {filter_label}"
+        if self._is_alive():
+            self.hint_mc_var.set(hint)
 
     def _update_type_hint(self) -> None:
         if self._content_type() == "modpack":
@@ -244,6 +298,8 @@ class ModrinthBrowser(tk.Toplevel):
     def _on_type_changed(self, _event: object | None = None) -> None:
         self._update_type_hint()
         self._update_download_button_text()
+        self._update_loader_filter_state()
+        self._update_search_hint()
         self._clear_results()
         self._load_popular()
 

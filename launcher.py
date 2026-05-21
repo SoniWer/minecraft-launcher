@@ -43,7 +43,7 @@ from build_backup import BackupError, export_build_zip, import_build_zip
 from drag_drop import enable_jar_drop
 from play_time import format_play_time
 from version_sort import sort_with_favorites
-from game_logs import latest_crash_report, latest_log, open_file as open_log_file
+from game_logs import latest_crash_report, open_file as open_log_file
 from game_process import GameProcessTracker
 from java_manager import (
     JavaInstall,
@@ -54,7 +54,7 @@ from java_manager import (
     resolve_java_executable,
 )
 from jvm_args import parse_jvm_args
-from log_viewer import LogViewerWindow
+from minecraft_log_panel import MinecraftLogPanel
 from ram_advisor import ram_hint_text, recommend_ram_gb
 from app_paths import launcher_dir
 from settings import LauncherSettings
@@ -145,7 +145,7 @@ class MinecraftLauncherApp:
                 f"{self.settings.window_width}x{self.settings.window_height}"
             )
         else:
-            self.root.geometry("1020x640")
+            self.root.geometry("1020x780")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
@@ -170,8 +170,14 @@ class MinecraftLauncherApp:
         return Path(self.shared_dir)
 
     def _build_ui(self) -> None:
-        main = ttk.Frame(self.root, padding=(16, 12))
-        main.pack(fill="both", expand=True)
+        shell = ttk.Frame(self.root, padding=(16, 12))
+        shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(0, weight=3)
+        shell.rowconfigure(1, weight=1, minsize=160)
+
+        main = ttk.Frame(shell)
+        main.grid(row=0, column=0, sticky="nsew")
         main.columnconfigure(0, weight=3, minsize=420)
         main.columnconfigure(1, weight=2, minsize=320)
         main.rowconfigure(1, weight=1)
@@ -440,9 +446,6 @@ class MinecraftLauncherApp:
             add_tooltip(btn, tip)
             if text == "Обновление":
                 self.btn_update = btn
-        self.logs_mb = self._create_logs_menubutton(utils_card)
-        self.logs_mb.grid(row=2, column=0, columnspan=3, sticky="ew", padx=4, pady=4)
-
         self.folders_frame = ttk.LabelFrame(
             right, text="Папки сборки", style="Card.TLabelframe", padding=(10, 8)
         )
@@ -455,6 +458,13 @@ class MinecraftLauncherApp:
         self.path_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
         self._update_path_label()
         self._register_tooltips()
+
+        self.log_panel = MinecraftLogPanel(
+            shell,
+            get_game_dir=self._game_dir,
+            colors=self._colors,
+        )
+        self.log_panel.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
 
     def _setup_drag_drop(self) -> None:
         enable_jar_drop(
@@ -552,7 +562,7 @@ class MinecraftLauncherApp:
             (self.stop_game_btn, "Завершить процесс, запущенный из лаунчера"),
             (self.modrinth_btn, "Каталог модов, modpack, текстур и шейдеров"),
             (self.btn_mods, "Список модов, обновления, вкл./выкл."),
-            (self.logs_mb, "Просмотр лога, crash-report и папка logs"),
+            (self.log_panel, "Лог игры latest.log в реальном времени"),
             (self.progress, "Прогресс установки версии или загрузчика"),
         ]
         for widget, text in tips:
@@ -566,25 +576,6 @@ class MinecraftLauncherApp:
             self.folders_frame,
             "Быстрый доступ к папкам текущей сборки",
         )
-
-    def _create_logs_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Логи ▾", style="Tool.TButton")
-        menu = tk.Menu(mb, tearoff=0)
-        colors = getattr(self.root, "_launcher_colors", None)
-        if colors is not None:
-            menu.configure(
-                bg=colors.entry,
-                fg=colors.fg,
-                activebackground=colors.accent,
-                activeforeground=colors.accent_fg,
-            )
-        menu.add_command(label="Просмотр в окне", command=self._open_log_viewer)
-        menu.add_separator()
-        menu.add_command(label="Открыть latest.log", command=self._open_latest_log)
-        menu.add_command(label="Открыть crash-report", command=self._open_latest_crash)
-        menu.add_command(label="Папка logs", command=self._open_logs_folder)
-        mb["menu"] = menu
-        return mb
 
     def _update_path_label(self) -> None:
         game = self._game_dir()
@@ -670,6 +661,8 @@ class MinecraftLauncherApp:
         self._update_play_time_label()
         self.settings.remember_build(build.name)
         self.settings.save(LAUNCHER_DIR)
+        if hasattr(self, "log_panel"):
+            self.log_panel.reset_source()
 
     def _apply_username_combo(self) -> None:
         values = self.settings.saved_usernames or ["Player"]
@@ -832,6 +825,8 @@ class MinecraftLauncherApp:
         self._update_ram_hint()
 
     def _on_game_running_changed(self, running: bool) -> None:
+        if hasattr(self, "log_panel"):
+            self.log_panel.set_fast_poll(running)
         if running:
             self.game_status_var.set("● Minecraft запущен")
             self.game_status_label.configure(style="Success.TLabel")
@@ -895,9 +890,6 @@ class MinecraftLauncherApp:
             messagebox.showinfo("Импорт", f"Сборка «{build.name}» импортирована.", parent=self.root)
         except BackupError as exc:
             messagebox.showerror("Импорт", str(exc), parent=self.root)
-
-    def _open_log_viewer(self) -> None:
-        LogViewerWindow(self.root, game_dir=self._game_dir())
 
     def _open_version_manager(self) -> None:
         from extras_ui import VersionManagerWindow
@@ -993,37 +985,6 @@ class MinecraftLauncherApp:
         self.settings.java_path = path
         self.settings.save(LAUNCHER_DIR)
         self._save_current_build()
-
-    def _open_latest_log(self) -> None:
-        path = latest_log(self._game_dir())
-        if not path:
-            messagebox.showinfo(
-                "Лог",
-                "Файл logs/latest.log ещё не создан. Запустите игру хотя бы раз.",
-                parent=self.root,
-            )
-            return
-        try:
-            open_log_file(path)
-        except OSError as exc:
-            messagebox.showerror("Ошибка", str(exc), parent=self.root)
-
-    def _open_latest_crash(self) -> None:
-        path = latest_crash_report(self._game_dir())
-        if not path:
-            messagebox.showinfo(
-                "Crash-report",
-                "В crash-reports нет отчётов для этой сборки.",
-                parent=self.root,
-            )
-            return
-        try:
-            open_log_file(path)
-        except OSError as exc:
-            messagebox.showerror("Ошибка", str(exc), parent=self.root)
-
-    def _open_logs_folder(self) -> None:
-        self._open_folder(self._game_dir() / "logs")
 
     def _open_mod_manager(self) -> None:
         from mods_ui import ModManagerWindow
@@ -1359,7 +1320,14 @@ class MinecraftLauncherApp:
                         f"Запуск {lv} · {bn}..."
                     ),
                 )
-                proc = subprocess.Popen(command, cwd=self.shared_dir)
+                creationflags = (
+                    subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                )
+                proc = subprocess.Popen(
+                    command,
+                    cwd=self.shared_dir,
+                    creationflags=creationflags,
+                )
                 self.root.after(0, lambda p=proc: self._game_tracker.attach(p))
             except UnsupportedVersion as exc:
                 self.root.after(
