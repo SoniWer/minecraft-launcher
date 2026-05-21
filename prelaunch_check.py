@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from disk_check import free_gb, needs_download_warning
 from game_logs import latest_crash_report
 from java_manager import JavaInstall, required_java_major
 from ram_advisor import count_mod_jars, recommend_ram_gb
@@ -107,6 +108,29 @@ def run_prelaunch_checks(
                 CheckResult(
                     "warning",
                     f"Мод есть и вкл., и выкл.: {shown}",
+                )
+            )
+
+    need_dl = needs_download_warning(
+        version_installed=version_installed,
+        loader_id=loader_id,
+    )
+    if need_dl is not None:
+        need_gb, reason = need_dl
+        free = free_gb(game_dir)
+        if free < need_gb:
+            results.append(
+                CheckResult(
+                    "error",
+                    f"Недостаточно места для {reason}: нужно ~{need_gb:.1f} ГБ, "
+                    f"свободно {free:.1f} ГБ.",
+                )
+            )
+        elif free < need_gb + 1.0:
+            results.append(
+                CheckResult(
+                    "warning",
+                    f"Мало места на диске для {reason} (~{need_gb:.1f} ГБ, свободно {free:.1f} ГБ).",
                 )
             )
 

@@ -10,6 +10,7 @@ import sys
 import threading
 import tkinter as tk
 import uuid
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -60,6 +61,9 @@ from settings import LauncherSettings
 from theme import apply_theme
 from tooltips import add_tooltip
 from ui_async import run_background
+from launcher_log import error as log_error, info as log_info, setup as setup_launcher_log
+from launcher_update import UpdateInfo, check_for_update
+from version import LAUNCHER_VERSION
 
 MOD_LOADERS: list[tuple[str, str]] = [
     ("vanilla", "Vanilla (без модов)"),
@@ -121,8 +125,7 @@ def open_folder(path: Path) -> None:
 class MinecraftLauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Minecraft Launcher")
-        self.root.geometry("1020x640")
+        self.root.title(f"Minecraft Launcher v{LAUNCHER_VERSION}")
         self.root.minsize(880, 580)
 
         self.shared_dir = minecraft_launcher_lib.utils.get_minecraft_directory()
@@ -130,6 +133,20 @@ class MinecraftLauncherApp:
         self.current_build: Build | None = None
         self._suppress_build_save = False
         self.settings = LauncherSettings.load(LAUNCHER_DIR)
+        self._pending_update: UpdateInfo | None = None
+        setup_launcher_log(LAUNCHER_DIR)
+        log_info(f"Launcher started v{LAUNCHER_VERSION}")
+
+        if (
+            self.settings.window_width >= 880
+            and self.settings.window_height >= 580
+        ):
+            self.root.geometry(
+                f"{self.settings.window_width}x{self.settings.window_height}"
+            )
+        else:
+            self.root.geometry("1020x640")
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
             self._on_game_running_changed,
@@ -143,6 +160,9 @@ class MinecraftLauncherApp:
         self._init_builds()
         self._load_java_installs_async()
         self._load_versions_async()
+        self._apply_username_combo()
+        self.root.after(400, self._check_crash_prompt)
+        self.root.after(1200, self._check_updates_async)
 
     def _game_dir(self) -> Path:
         if self.current_build:
@@ -163,7 +183,7 @@ class MinecraftLauncherApp:
         )
         ttk.Label(
             header,
-            text="Java Edition · сборки · Modrinth",
+            text=f"Java Edition · сборки · Modrinth · v{LAUNCHER_VERSION}",
             style="Subtitle.TLabel",
         ).pack(side="left", padx=(16, 0), anchor="s")
 
@@ -207,7 +227,9 @@ class MinecraftLauncherApp:
 
         ttk.Label(profile, text="Никнейм").grid(row=1, column=0, sticky="w", pady=3)
         self.username_var = tk.StringVar(value="Player")
-        self.username_entry = ttk.Entry(profile, textvariable=self.username_var)
+        self.username_entry = ttk.Combobox(
+            profile, textvariable=self.username_var, width=24
+        )
         self.username_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=(8, 0), pady=3)
         self.username_var.trace_add("write", self._on_settings_changed)
 
@@ -404,6 +426,11 @@ class MinecraftLauncherApp:
             ("Версии MC", self._open_version_manager, "Удалить установленные версии"),
             ("Скачать Java", self._download_java, "Скачать Temurin под версию MC"),
             ("Тема", self._toggle_theme, "Светлая / тёмная тема интерфейса"),
+            (
+                "Обновление",
+                self._check_updates_manual,
+                "Проверить новую версию лаунчера на GitHub",
+            ),
         )
         for i, (text, cmd, tip) in enumerate(tool_cmds):
             btn = ttk.Button(
@@ -411,6 +438,8 @@ class MinecraftLauncherApp:
             )
             btn.grid(row=i // 3, column=i % 3, padx=4, pady=4, sticky="ew")
             add_tooltip(btn, tip)
+            if text == "Обновление":
+                self.btn_update = btn
         self.logs_mb = self._create_logs_menubutton(utils_card)
         self.logs_mb.grid(row=2, column=0, columnspan=3, sticky="ew", padx=4, pady=4)
 
@@ -510,7 +539,7 @@ class MinecraftLauncherApp:
             (self.btn_build_new, "Создать пустую сборку"),
             (self.btn_build_clone, "Копия текущей сборки со всеми файлами"),
             (self.btn_build_delete, "Удалить сборку и её папку"),
-            (self.username_entry, "Офлайн-никнейм в игре"),
+            (self.username_entry, "Офлайн-никнейм; список — недавние ники"),
             (self.java_combo, "Java для запуска; «Авто» подбирает по версии MC"),
             (self.loader_combo, "Fabric, Forge, NeoForge, Quilt или Vanilla"),
             (self.version_combo, "Версия Minecraft для этой сборки"),
@@ -593,12 +622,19 @@ class MinecraftLauncherApp:
         ensure_default_build(LAUNCHER_DIR)
         self._refresh_build_list()
         builds = list_builds(LAUNCHER_DIR)
-        if builds:
-            self._select_build(builds[0])
+        if not builds:
+            return
+        pick = builds[0]
+        for name in self.settings.recent_builds:
+            found = self._find_build_by_name(name)
+            if found:
+                pick = found
+                break
+        self._select_build(pick)
 
     def _refresh_build_list(self) -> None:
         names = [b.name for b in list_builds(LAUNCHER_DIR)]
-        self.build_combo["values"] = names
+        self.build_combo["values"] = self.settings.ordered_build_names(names)
 
     def _find_build_by_name(self, name: str) -> Build | None:
         for build in list_builds(LAUNCHER_DIR):
@@ -632,6 +668,12 @@ class MinecraftLauncherApp:
         self._update_ram_hint()
         self._update_favorite_button()
         self._update_play_time_label()
+        self.settings.remember_build(build.name)
+        self.settings.save(LAUNCHER_DIR)
+
+    def _apply_username_combo(self) -> None:
+        values = self.settings.saved_usernames or ["Player"]
+        self.username_entry["values"] = values
 
     def _on_build_selected(self, _event: object | None = None) -> None:
         name = self.build_var.get()
@@ -733,6 +775,8 @@ class MinecraftLauncherApp:
         build.java_path = self._selected_java_path()
         build.jvm_args = self.jvm_args_var.get().strip()
         save_build(build, LAUNCHER_DIR)
+        self.settings.remember_username(build.username)
+        self.settings.remember_build(build.name)
         self.settings.save(LAUNCHER_DIR)
 
     def _loader_id(self) -> str:
@@ -1322,6 +1366,7 @@ class MinecraftLauncherApp:
                     0, lambda msg=str(exc): messagebox.showerror("Ошибка", msg)
                 )
             except Exception as exc:
+                log_error(f"Launch failed: {exc}")
                 self.root.after(
                     0,
                     lambda msg=str(exc): messagebox.showerror(
@@ -1332,6 +1377,108 @@ class MinecraftLauncherApp:
                 self.root.after(0, lambda: self._set_busy(False))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _save_window_geometry(self) -> None:
+        self.root.update_idletasks()
+        w = max(self.root.winfo_width(), 0)
+        h = max(self.root.winfo_height(), 0)
+        if w >= 880 and h >= 580:
+            self.settings.window_width = w
+            self.settings.window_height = h
+
+    def _on_close(self) -> None:
+        try:
+            self._save_current_build()
+            self._save_window_geometry()
+            self.settings.save(LAUNCHER_DIR)
+        finally:
+            self.root.destroy()
+
+    def _check_crash_prompt(self) -> None:
+        crash = latest_crash_report(self._game_dir())
+        if not crash or not crash.is_file():
+            return
+        key = f"{crash.resolve()}:{int(crash.stat().st_mtime)}"
+        if key == self.settings.last_seen_crash_key:
+            return
+        if messagebox.askyesno(
+            "Crash-report",
+            f"Найден свежий отчёт об ошибке:\n{crash.name}\n\nОткрыть файл?",
+            parent=self.root,
+        ):
+            try:
+                open_log_file(crash)
+            except OSError as exc:
+                messagebox.showerror("Ошибка", str(exc), parent=self.root)
+        self.settings.last_seen_crash_key = key
+        self.settings.save(LAUNCHER_DIR)
+
+    def _check_updates_async(self) -> None:
+        def worker() -> UpdateInfo | None:
+            return check_for_update()
+
+        def done(info: UpdateInfo | None) -> None:
+            if not info:
+                return
+            self._pending_update = info
+            self.status_var.set(
+                f"Доступна версия {info.latest} — кнопка «Обновление»"
+            )
+            if hasattr(self, "btn_update"):
+                self.btn_update.configure(text=f"Обновление v{info.latest}")
+
+        run_background(
+            self.root,
+            worker,
+            done,
+            on_error=lambda _exc: None,
+        )
+
+    def _check_updates_manual(self) -> None:
+        self.status_var.set("Проверка обновлений...")
+        if self._pending_update:
+            info = self._pending_update
+            if messagebox.askyesno(
+                "Обновление лаунчера",
+                f"Доступна версия {info.latest} (у вас {info.current}).\n\n"
+                "Открыть страницу скачивания?",
+                parent=self.root,
+            ):
+                webbrowser.open(info.download_url)
+            return
+
+        def worker() -> UpdateInfo | None:
+            return check_for_update()
+
+        def done(info: UpdateInfo | None) -> None:
+            if info:
+                self._pending_update = info
+                self.btn_update.configure(text=f"Обновление v{info.latest}")
+                if messagebox.askyesno(
+                    "Обновление лаунчера",
+                    f"Доступна версия {info.latest} (у вас {info.current}).\n\n"
+                    "Открыть страницу скачивания?",
+                    parent=self.root,
+                ):
+                    webbrowser.open(info.download_url)
+            else:
+                messagebox.showinfo(
+                    "Обновление",
+                    f"Установлена актуальная версия ({LAUNCHER_VERSION}).",
+                    parent=self.root,
+                )
+                self.status_var.set("Готово")
+
+        run_background(
+            self.root,
+            worker,
+            done,
+            on_error=lambda exc: messagebox.showerror(
+                "Обновление",
+                f"Не удалось проверить обновления:\n{exc}",
+                parent=self.root,
+            ),
+        )
 
 
 def main() -> None:

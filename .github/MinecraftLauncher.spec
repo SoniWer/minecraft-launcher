@@ -38,6 +38,10 @@ hiddenimports = [
     "tooltips",
     "ui_async",
     "version_manager",
+    "version",
+    "launcher_update",
+    "launcher_log",
+    "disk_check",
 ]
 
 tmp_ret = collect_all("minecraft_launcher_lib")

@@ -4,6 +4,7 @@ backups/
 java/
 tools/
 settings.json
+launcher.log
 
 # EXE только в GitHub Releases
 MinecraftLauncher.exe

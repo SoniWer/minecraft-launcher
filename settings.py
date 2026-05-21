@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 SETTINGS_NAME = "settings.json"
+MAX_RECENT_BUILDS = 5
+MAX_SAVED_USERNAMES = 8
 
 
 @dataclass
@@ -14,6 +16,11 @@ class LauncherSettings:
     java_path: str = ""
     dark_theme: bool = True
     favorite_versions: list[str] = field(default_factory=list)
+    window_width: int = 0
+    window_height: int = 0
+    recent_builds: list[str] = field(default_factory=list)
+    saved_usernames: list[str] = field(default_factory=list)
+    last_seen_crash_key: str = ""
 
     @classmethod
     def load(cls, launcher_dir: Path) -> LauncherSettings:
@@ -24,7 +31,18 @@ class LauncherSettings:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 return cls()
-            return cls(**{k: data[k] for k in cls.__dataclass_fields__ if k in data})
+            kwargs = {}
+            for key in cls.__dataclass_fields__:
+                if key not in data:
+                    continue
+                val = data[key]
+                if key in ("recent_builds", "saved_usernames", "favorite_versions"):
+                    kwargs[key] = val if isinstance(val, list) else []
+                elif key in ("window_width", "window_height"):
+                    kwargs[key] = int(val) if isinstance(val, (int, float)) else 0
+                else:
+                    kwargs[key] = val
+            return cls(**kwargs)
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
             return cls()
 
@@ -34,3 +52,22 @@ class LauncherSettings:
             json.dumps(asdict(self), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    def remember_build(self, name: str) -> None:
+        name = name.strip()
+        if not name:
+            return
+        rest = [n for n in self.recent_builds if n != name]
+        self.recent_builds = ([name] + rest)[:MAX_RECENT_BUILDS]
+
+    def remember_username(self, name: str) -> None:
+        name = name.strip()
+        if not name:
+            return
+        rest = [n for n in self.saved_usernames if n != name]
+        self.saved_usernames = ([name] + rest)[:MAX_SAVED_USERNAMES]
+
+    def ordered_build_names(self, all_names: list[str]) -> list[str]:
+        recent = [n for n in self.recent_builds if n in all_names]
+        rest = [n for n in all_names if n not in recent]
+        return recent + rest
