@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Создать launcher.ico для EXE (нужен Pillow: pip install pillow)."""
+"""Create launcher.ico for release build (Pillow)."""
 
 from __future__ import annotations
 
@@ -10,20 +10,15 @@ def main() -> None:
     try:
         from PIL import Image, ImageDraw
     except ImportError as exc:
-        raise SystemExit("Установите Pillow: pip install pillow") from exc
+        raise SystemExit("pip install pillow") from exc
 
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parent.parent
     size = 256
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Фон — «трава» Minecraft
     draw.rounded_rectangle((16, 16, 240, 240), radius=28, fill=(61, 142, 74, 255))
-    draw.rounded_rectangle((
-        24, 24, 232, 232
-    ), radius=22, fill=(86, 168, 96, 255))
-
-    # Буква M
+    draw.rounded_rectangle((24, 24, 232, 232), radius=22, fill=(86, 168, 96, 255))
     draw.rectangle((78, 72, 98, 188), fill=(240, 240, 240, 255))
     draw.rectangle((158, 72, 178, 188), fill=(240, 240, 240, 255))
     draw.polygon(

@@ -32,10 +32,10 @@ jobs:
       - name: Создание иконки
         env:
           PYTHONIOENCODING: utf-8
-        run: python make_icon.py
+        run: python .github/make_icon.py
 
       - name: Сборка MinecraftLauncher.exe
-        run: python -m PyInstaller MinecraftLauncher.spec --noconfirm --distpath .
+        run: python -m PyInstaller .github/MinecraftLauncher.spec --noconfirm
 
       - name: Определение версии
         id: ver

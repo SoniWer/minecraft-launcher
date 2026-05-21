@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Сборка: pyinstaller MinecraftLauncher.spec --noconfirm"""
 
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all
 
-root = Path(SPECPATH).resolve()
+root = Path(SPECPATH).resolve().parent
 
 datas: list = []
 binaries: list = []
