@@ -1,0 +1,66 @@
+# Сборка EXE и публикация в Releases (тег v*.*.*)
+name: Релиз с EXE
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия релиза (например 1.0.0)"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установка зависимостей и PyInstaller
+        run: |
+          pip install -r requirements.txt pyinstaller pillow
+
+      - name: Создание иконки
+        run: python make_icon.py
+
+      - name: Сборка MinecraftLauncher.exe
+        run: python -m PyInstaller MinecraftLauncher.spec --noconfirm --distpath .
+
+      - name: Определение версии
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Публикация GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Minecraft Launcher ${{ steps.ver.outputs.tag }}
+          body: |
+            ## Скачать
+            Файл **MinecraftLauncher.exe** — готовый лаунчер для Windows (не нужен Python).
+
+            ## Установка
+            1. Скачайте `MinecraftLauncher.exe` из раздела Assets ниже.
+            2. Положите в любую папку и запустите.
+            3. При первом запуске создадутся `builds/` и `settings.json` рядом с EXE.
+
+            Подробная инструкция: [docs/УСТАНОВКА.md](https://github.com/${{ github.repository }}/blob/main/docs/УСТАНОВКА.md)
+          files: MinecraftLauncher.exe
+          draft: false
+          prerelease: false
+          generate_release_notes: true

@@ -1,0 +1,4 @@
+minecraft-launcher-lib>=7.0
+requests>=2.28
+sv-ttk>=2.5
+windnd>=1.0.3; platform_system == "Windows"

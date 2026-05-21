@@ -1,0 +1,23 @@
+# Данные пользователя (не в репозиторий)
+builds/
+backups/
+java/
+tools/
+settings.json
+
+# Собранный EXE — только в GitHub Releases, не в коде
+MinecraftLauncher.exe
+
+# Сборка
+build/
+dist/
+*.spec.bak
+launcher.ico
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
