@@ -21,6 +21,7 @@ class LauncherSettings:
     recent_builds: list[str] = field(default_factory=list)
     saved_usernames: list[str] = field(default_factory=list)
     last_seen_crash_key: str = ""
+    show_game_log: bool = False
 
     @classmethod
     def load(cls, launcher_dir: Path) -> LauncherSettings:
@@ -40,6 +41,8 @@ class LauncherSettings:
                     kwargs[key] = val if isinstance(val, list) else []
                 elif key in ("window_width", "window_height"):
                     kwargs[key] = int(val) if isinstance(val, (int, float)) else 0
+                elif key == "show_game_log":
+                    kwargs[key] = bool(val)
                 else:
                     kwargs[key] = val
             return cls(**kwargs)

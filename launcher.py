@@ -130,7 +130,7 @@ class MinecraftLauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(f"Minecraft Launcher v{LAUNCHER_VERSION}")
-        self.root.minsize(820, 480)
+        self.root.minsize(780, 460)
 
         self.shared_dir = minecraft_launcher_lib.utils.get_minecraft_directory()
         self.versions: list[dict] = []
@@ -149,7 +149,7 @@ class MinecraftLauncherApp:
                 f"{self.settings.window_width}x{self.settings.window_height}"
             )
         else:
-            self.root.geometry("900x540")
+            self.root.geometry("860x500")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
@@ -174,164 +174,174 @@ class MinecraftLauncherApp:
         return Path(self.shared_dir)
 
     def _build_ui(self) -> None:
-        shell = ttk.Frame(self.root, padding=(10, 8))
+        shell = ttk.Frame(self.root, padding=(8, 6))
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(0, weight=1)
-        shell.rowconfigure(1, weight=0, minsize=110)
+        shell.rowconfigure(1, weight=0)
 
-        main = ttk.Frame(shell)
-        main.grid(row=0, column=0, sticky="nsew")
-        main.columnconfigure(0, weight=3, minsize=400)
-        main.columnconfigure(1, weight=2, minsize=280)
-        main.rowconfigure(1, weight=1)
+        scroll_host = ttk.Frame(shell)
+        scroll_host.grid(row=0, column=0, sticky="nsew")
+        scroll_host.columnconfigure(0, weight=1)
+        scroll_host.rowconfigure(0, weight=1)
+
+        self._main_canvas = tk.Canvas(scroll_host, highlightthickness=0, borderwidth=0)
+        vsb = ttk.Scrollbar(scroll_host, orient="vertical", command=self._main_canvas.yview)
+        self._main_canvas.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        self._main_canvas.configure(yscrollcommand=vsb.set)
+
+        main = ttk.Frame(self._main_canvas)
+        self._main_canvas_window = self._main_canvas.create_window(
+            (0, 0), window=main, anchor="nw"
+        )
+        main.bind(
+            "<Configure>",
+            lambda _e: self._main_canvas.configure(
+                scrollregion=self._main_canvas.bbox("all")
+            ),
+        )
+        self._main_canvas.bind(
+            "<Configure>",
+            lambda e: self._main_canvas.itemconfigure(
+                self._main_canvas_window, width=e.width
+            ),
+        )
+        self._bind_mousewheel(self._main_canvas)
 
         header = ttk.Frame(main)
-        header.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        header.pack(fill="x", pady=(0, 4))
         ttk.Label(header, text="Minecraft Launcher", style="Title.TLabel").pack(
-            side="left", anchor="w"
+            side="left"
         )
-        ttk.Label(
-            header,
-            text=f"v{LAUNCHER_VERSION}",
-            style="Subtitle.TLabel",
-        ).pack(side="left", padx=(12, 0), anchor="s")
-
-        left = ttk.Frame(main)
-        left.grid(row=1, column=0, sticky="nsew", padx=(0, 8))
-        left.columnconfigure(0, weight=1)
-
-        right = ttk.Frame(main)
-        right.grid(row=1, column=1, sticky="nsew")
-        right.columnconfigure(0, weight=1)
-
-        profile = ttk.LabelFrame(
-            left, text="Сборка", style="Card.TLabelframe", padding=(8, 6)
+        ttk.Label(header, text=f"v{LAUNCHER_VERSION}", style="Subtitle.TLabel").pack(
+            side="left", padx=(10, 0)
         )
-        profile.pack(fill="x", pady=(0, 6))
-        profile.columnconfigure(1, weight=1)
 
-        build_row = ttk.Frame(profile)
-        build_row.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 4))
+        body = ttk.Frame(main)
+        body.pack(fill="x")
+        body.columnconfigure(0, weight=3)
+        body.columnconfigure(1, weight=2)
+
+        left_nb = ttk.Notebook(body)
+        left_nb.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+
+        tab_build = ttk.Frame(left_nb, padding=6)
+        tab_java = ttk.Frame(left_nb, padding=6)
+        left_nb.add(tab_build, text="Сборка")
+        left_nb.add(tab_java, text="Java / ОЗУ")
+
+        build_row = ttk.Frame(tab_build)
+        build_row.pack(fill="x", pady=(0, 4))
         ttk.Label(build_row, text="Имя").pack(side="left")
         self.build_var = tk.StringVar()
         self.build_combo = ttk.Combobox(
-            build_row, textvariable=self.build_var, width=18, state="readonly"
+            build_row, textvariable=self.build_var, width=14, state="readonly"
         )
-        self.build_combo.pack(side="left", padx=(6, 4), fill="x", expand=True)
+        self.build_combo.pack(side="left", padx=4, fill="x", expand=True)
         self.build_combo.bind("<<ComboboxSelected>>", self._on_build_selected)
-        self.btn_build_new = ttk.Button(
-            build_row, text="+", width=3, command=self._create_build
-        )
-        self.btn_build_new.pack(side="left", padx=1)
-        self.btn_build_clone = ttk.Button(
-            build_row, text="⧉", width=3, command=self._clone_build
-        )
-        self.btn_build_clone.pack(side="left", padx=1)
-        self.btn_build_delete = ttk.Button(
-            build_row, text="−", width=3, command=self._delete_build
-        )
-        self.btn_build_delete.pack(side="left")
+        for text, cmd in (("+", self._create_build), ("⧉", self._clone_build), ("−", self._delete_build)):
+            ttk.Button(build_row, text=text, width=3, command=cmd).pack(side="left", padx=1)
 
         self.build_summary_var = tk.StringVar(value="")
-        ttk.Label(
-            profile, textvariable=self.build_summary_var, style="Hint.TLabel"
-        ).grid(row=1, column=0, columnspan=3, sticky="w", pady=(0, 4))
-
-        ttk.Label(profile, text="Никнейм").grid(row=2, column=0, sticky="w", pady=2)
-        self.username_var = tk.StringVar(value="Player")
-        self.username_entry = ttk.Combobox(
-            profile, textvariable=self.username_var, width=20
+        ttk.Label(tab_build, textvariable=self.build_summary_var, style="Hint.TLabel").pack(
+            anchor="w", pady=(0, 6)
         )
-        self.username_entry.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(6, 0), pady=2)
+
+        def grid_row(parent, row, label, widget_factory):
+            ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=3)
+            w = widget_factory(parent)
+            w.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
+            return w
+
+        tab_build.columnconfigure(1, weight=1)
+        self.username_var = tk.StringVar(value="Player")
+        self.username_entry = grid_row(
+            tab_build, 0, "Никнейм", lambda p: ttk.Combobox(p, textvariable=self.username_var)
+        )
         self.username_var.trace_add("write", self._on_settings_changed)
 
-        ttk.Label(profile, text="Версия MC").grid(row=3, column=0, sticky="w", pady=2)
-        ver_row = ttk.Frame(profile)
-        ver_row.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(6, 0), pady=2)
-        ver_row.columnconfigure(0, weight=1)
-        self.version_combo = ttk.Combobox(ver_row, state="disabled")
+        ttk.Label(tab_build, text="Версия MC").grid(row=1, column=0, sticky="w", pady=3)
+        ver_inner = ttk.Frame(tab_build)
+        ver_inner.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=3)
+        ver_inner.columnconfigure(0, weight=1)
+        self.version_combo = ttk.Combobox(ver_inner, state="disabled")
         self.version_combo.grid(row=0, column=0, sticky="ew")
         self.version_combo.bind("<<ComboboxSelected>>", self._on_mc_version_changed)
         self.btn_favorite_version = ttk.Button(
-            ver_row, text="☆", width=3, command=self._toggle_favorite_version
+            ver_inner, text="☆", width=3, command=self._toggle_favorite_version
         )
         self.btn_favorite_version.grid(row=0, column=1, padx=(4, 0))
 
-        ttk.Label(profile, text="Загрузчик").grid(row=4, column=0, sticky="w", pady=2)
         self.loader_var = tk.StringVar(value="Vanilla (без модов)")
-        self.loader_combo = ttk.Combobox(
-            profile,
-            textvariable=self.loader_var,
-            values=[name for _, name in MOD_LOADERS],
-            state="readonly",
-            width=16,
+        self.loader_combo = grid_row(
+            tab_build,
+            2,
+            "Загрузчик",
+            lambda p: ttk.Combobox(
+                p,
+                textvariable=self.loader_var,
+                values=[name for _, name in MOD_LOADERS],
+                state="readonly",
+            ),
         )
-        self.loader_combo.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(6, 0), pady=2)
         self.loader_combo.bind("<<ComboboxSelected>>", self._on_loader_changed)
 
-        self.loader_version_label = ttk.Label(profile, text="Верс. загр.")
-        self.loader_version_label.grid(row=5, column=0, sticky="w", pady=2)
-        self.loader_version_combo = ttk.Combobox(profile, state="disabled", width=14)
-        self.loader_version_combo.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(6, 0), pady=2)
+        self.loader_version_label = ttk.Label(tab_build, text="Верс. загр.")
+        self.loader_version_label.grid(row=3, column=0, sticky="w", pady=3)
+        self.loader_version_combo = ttk.Combobox(tab_build, state="disabled")
+        self.loader_version_combo.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=3)
         self.loader_version_combo.bind("<<ComboboxSelected>>", self._on_settings_changed)
         self._update_loader_version_visibility()
 
-        ttk.Label(profile, text="Список").grid(row=6, column=0, sticky="w", pady=2)
         self.filter_var = tk.StringVar(value="release")
         self.filter_display_var = tk.StringVar(value="Релизы")
-        self.filter_combo = ttk.Combobox(
-            profile,
-            textvariable=self.filter_display_var,
-            values=list(FILTER_LABELS),
-            state="readonly",
-            width=14,
+        self.filter_combo = grid_row(
+            tab_build,
+            4,
+            "Список MC",
+            lambda p: ttk.Combobox(
+                p,
+                textvariable=self.filter_display_var,
+                values=list(FILTER_LABELS),
+                state="readonly",
+            ),
         )
-        self.filter_combo.grid(row=6, column=1, sticky="w", padx=(6, 0), pady=2)
         self.filter_combo.bind("<<ComboboxSelected>>", self._on_filter_combo_changed)
 
-        extra = ttk.LabelFrame(
-            left, text="Java и память", style="Card.TLabelframe", padding=(8, 6)
-        )
-        extra.pack(fill="x")
-        extra.columnconfigure(1, weight=1)
-
-        ttk.Label(extra, text="Java").grid(row=0, column=0, sticky="w", pady=2)
+        tab_java.columnconfigure(1, weight=1)
         self.java_var = tk.StringVar()
-        self.java_combo = ttk.Combobox(
-            extra, textvariable=self.java_var, state="readonly", width=22
+        self.java_combo = grid_row(
+            tab_java,
+            0,
+            "Java",
+            lambda p: ttk.Combobox(p, textvariable=self.java_var, state="readonly"),
         )
-        self.java_combo.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=2)
         self.java_combo.bind("<<ComboboxSelected>>", self._on_java_changed)
         self.java_hint_var = tk.StringVar(value="")
-        ttk.Label(
-            extra, textvariable=self.java_hint_var, style="Hint.TLabel"
-        ).grid(row=1, column=0, columnspan=2, sticky="w")
-
-        ttk.Label(extra, text="ОЗУ").grid(row=2, column=0, sticky="w", pady=2)
-        ram_row = ttk.Frame(extra)
-        ram_row.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=2)
-        self.ram_var = tk.StringVar(value="4")
-        self.ram_combo = ttk.Combobox(
-            ram_row, textvariable=self.ram_var, values=RAM_OPTIONS_GB, width=6
+        ttk.Label(tab_java, textvariable=self.java_hint_var, style="Hint.TLabel").grid(
+            row=1, column=0, columnspan=2, sticky="w"
         )
+
+        ram_row = ttk.Frame(tab_java)
+        ttk.Label(tab_java, text="ОЗУ (ГБ)").grid(row=2, column=0, sticky="w", pady=3)
+        ram_row.grid(row=2, column=1, sticky="w", padx=(6, 0), pady=3)
+        self.ram_var = tk.StringVar(value="4")
+        self.ram_combo = ttk.Combobox(ram_row, textvariable=self.ram_var, values=RAM_OPTIONS_GB, width=5)
         self.ram_combo.pack(side="left")
         self.btn_ram_recommend = ttk.Button(
-            ram_row,
-            text="Авто",
-            style="Tool.TButton",
-            command=self._apply_recommended_ram,
+            ram_row, text="Авто", style="Tool.TButton", command=self._apply_recommended_ram
         )
-        self.btn_ram_recommend.pack(side="left", padx=(6, 0))
+        self.btn_ram_recommend.pack(side="left", padx=4)
         self.ram_var.trace_add("write", self._on_ram_changed)
         self.ram_hint_var = tk.StringVar(value="")
-        ttk.Label(extra, textvariable=self.ram_hint_var, style="Hint.TLabel").grid(
+        ttk.Label(tab_java, textvariable=self.ram_hint_var, style="Hint.TLabel").grid(
             row=3, column=0, columnspan=2, sticky="w"
         )
 
-        ttk.Label(extra, text="JVM").grid(row=4, column=0, sticky="w", pady=2)
-        jvm_row = ttk.Frame(extra)
-        jvm_row.grid(row=4, column=1, sticky="ew", padx=(6, 0), pady=2)
+        jvm_row = ttk.Frame(tab_java)
+        ttk.Label(tab_java, text="JVM").grid(row=4, column=0, sticky="nw", pady=3)
+        jvm_row.grid(row=4, column=1, sticky="ew", padx=(6, 0), pady=3)
         jvm_row.columnconfigure(1, weight=1)
         self.jvm_preset_var = tk.StringVar(value="По умолчанию")
         self.jvm_preset_combo = ttk.Combobox(
@@ -339,86 +349,75 @@ class MinecraftLauncherApp:
             textvariable=self.jvm_preset_var,
             values=preset_names(),
             state="readonly",
-            width=12,
+            width=11,
         )
         self.jvm_preset_combo.pack(side="left")
         self.jvm_preset_combo.bind("<<ComboboxSelected>>", self._on_jvm_preset)
         self.jvm_args_var = tk.StringVar()
         self.jvm_args_entry = ttk.Entry(jvm_row, textvariable=self.jvm_args_var)
-        self.jvm_args_entry.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        self.jvm_args_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
         self.jvm_args_var.trace_add("write", self._on_jvm_args_changed)
 
-        launch = ttk.LabelFrame(
-            right, text="Запуск", style="Card.TLabelframe", padding=(8, 6)
-        )
-        launch.pack(fill="both", expand=True)
+        launch = ttk.LabelFrame(body, text="Запуск", style="Card.TLabelframe", padding=(8, 6))
+        launch.grid(row=0, column=1, sticky="nsew")
         launch.columnconfigure(0, weight=1)
 
         self.status_var = tk.StringVar(value="Загрузка...")
-        ttk.Label(
-            launch,
-            textvariable=self.status_var,
-            style="Status.TLabel",
-            wraplength=280,
-        ).grid(row=0, column=0, sticky="ew")
+        ttk.Label(launch, textvariable=self.status_var, style="Status.TLabel").pack(
+            anchor="w", fill="x"
+        )
         self.progress = ttk.Progressbar(launch, mode="determinate")
-        self.progress.grid(row=1, column=0, sticky="ew", pady=(4, 8))
+        self.progress.pack(fill="x", pady=4)
 
         self.play_btn = ttk.Button(
-            launch,
-            text="▶  Играть",
-            style="Accent.TButton",
-            command=self._on_play,
-            state="disabled",
+            launch, text="▶  Играть", style="Accent.TButton", command=self._on_play, state="disabled"
         )
-        self.play_btn.grid(row=2, column=0, sticky="ew")
+        self.play_btn.pack(fill="x", pady=4)
 
-        self.game_status_var = tk.StringVar(value="Minecraft не запущен")
-        self.game_status_label = ttk.Label(
-            launch, textvariable=self.game_status_var, style="Status.TLabel"
-        )
-        self.game_status_label.grid(row=3, column=0, sticky="w", pady=(6, 0))
+        self.game_status_var = tk.StringVar(value="MC не запущен")
+        ttk.Label(launch, textvariable=self.game_status_var, style="Status.TLabel").pack(anchor="w")
         self.play_time_var = tk.StringVar(value="")
-        ttk.Label(
-            launch, textvariable=self.play_time_var, style="Hint.TLabel"
-        ).grid(row=4, column=0, sticky="w")
+        ttk.Label(launch, textvariable=self.play_time_var, style="Hint.TLabel").pack(anchor="w")
 
-        actions = ttk.Frame(launch)
-        actions.grid(row=5, column=0, sticky="ew", pady=(8, 0))
+        row1 = ttk.Frame(launch)
+        row1.pack(fill="x", pady=4)
         self.stop_game_btn = ttk.Button(
-            actions,
-            text="Стоп",
-            style="Danger.TButton",
-            command=self._kill_game,
-            state="disabled",
+            row1, text="Стоп", style="Danger.TButton", command=self._kill_game, state="disabled"
         )
         self.stop_game_btn.pack(side="left")
-        self.modrinth_btn = ttk.Button(
-            actions, text="Modrinth", style="Tool.TButton", command=self._open_modrinth
+        ttk.Button(row1, text="Modrinth", style="Tool.TButton", command=self._open_modrinth).pack(
+            side="right"
         )
-        self.modrinth_btn.pack(side="right", padx=(4, 0))
-        self.btn_mods = ttk.Button(
-            actions, text="Моды", style="Tool.TButton", command=self._open_mod_manager
-        )
-        self.btn_mods.pack(side="right", padx=(4, 0))
 
-        menus = ttk.Frame(launch)
-        menus.grid(row=6, column=0, sticky="ew", pady=(8, 0))
-        self.utils_mb = self._create_utils_menubutton(menus)
+        row2 = ttk.Frame(launch)
+        row2.pack(fill="x", pady=2)
+        self.content_mb = self._create_content_menubutton(row2)
+        self.content_mb.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.utils_mb = self._create_utils_menubutton(row2)
         self.utils_mb.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        self.folders_mb = self._create_folders_menubutton(menus)
+        self.folders_mb = self._create_folders_menubutton(row2)
         self.folders_mb.pack(side="left", fill="x", expand=True)
 
-        self.path_label = ttk.Label(main, text="", style="Hint.TLabel")
-        self.path_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self.path_label = ttk.Label(launch, text="", style="Hint.TLabel")
+        self.path_label.pack(anchor="w", pady=(4, 0))
         self._update_path_label()
 
-        self.log_panel = MinecraftLogPanel(
-            shell,
-            get_game_dir=self._game_dir,
-            colors=self._colors,
-        )
-        self.log_panel.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
+        log_bar = ttk.Frame(shell)
+        log_bar.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        self.show_log_var = tk.BooleanVar(value=self.settings.show_game_log)
+        ttk.Checkbutton(
+            log_bar,
+            text="Показать лог Minecraft",
+            variable=self.show_log_var,
+            command=self._toggle_log_panel,
+        ).pack(side="left")
+
+        self.log_panel = MinecraftLogPanel(shell, get_game_dir=self._game_dir, colors=self._colors)
+        if self.show_log_var.get():
+            self.log_panel.pack(fill="both", expand=False, pady=(2, 0))
+        else:
+            self.log_panel.pack_forget()
+
         self._register_tooltips()
 
     def _setup_drag_drop(self) -> None:
@@ -501,9 +500,6 @@ class MinecraftLauncherApp:
     def _register_tooltips(self) -> None:
         tips: list[tuple[tk.Misc, str]] = [
             (self.build_combo, "Отдельный профиль: моды, миры и настройки"),
-            (self.btn_build_new, "Создать пустую сборку"),
-            (self.btn_build_clone, "Копия текущей сборки со всеми файлами"),
-            (self.btn_build_delete, "Удалить сборку и её папку"),
             (self.username_entry, "Офлайн-никнейм; список — недавние ники"),
             (self.java_combo, "Java для запуска; «Авто» подбирает по версии MC"),
             (self.loader_combo, "Fabric, Forge, NeoForge, Quilt или Vanilla"),
@@ -515,10 +511,8 @@ class MinecraftLauncherApp:
             (self.jvm_args_entry, "Дополнительные аргументы Java (-XX:…)"),
             (self.play_btn, "Установить (если нужно) и запустить Minecraft"),
             (self.stop_game_btn, "Завершить процесс, запущенный из лаунчера"),
-            (self.modrinth_btn, "Каталог модов, modpack, текстур и шейдеров"),
-            (self.btn_mods, "Список модов, обновления, вкл./выкл."),
-            (self.log_panel, "Лог игры latest.log в реальном времени"),
-            (self.version_combo, "Версия Minecraft для этой сборки"),
+            (self.content_mb, "Моды, текстуры и шейдеры — вкл./выкл. как у модов"),
+            (self.log_panel, "Лог игры latest.log; «Копировать» — в буфер обмена"),
             (self.filter_combo, "Какие версии показывать в списке"),
             (self.utils_mb, "Экспорт, импорт, Java, тема, обновление"),
             (self.folders_mb, "Папки mods, миры, config и др."),
@@ -538,6 +532,50 @@ class MinecraftLauncherApp:
         self.path_label.configure(
             text=f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
         )
+
+    def _bind_mousewheel(self, canvas: tk.Canvas) -> None:
+        def _on_wheel(event: tk.Event) -> None:
+            canvas.yview_scroll(int(-event.delta / 120), "units")
+
+        def _bind(_event: object | None = None) -> None:
+            canvas.bind_all("<MouseWheel>", _on_wheel)
+
+        def _unbind(_event: object | None = None) -> None:
+            canvas.unbind_all("<MouseWheel>")
+
+        canvas.bind("<Enter>", _bind)
+        canvas.bind("<Leave>", _unbind)
+
+    def _toggle_log_panel(self) -> None:
+        show = self.show_log_var.get()
+        self.settings.show_game_log = show
+        self.settings.save(LAUNCHER_DIR)
+        if show:
+            self.log_panel.pack(fill="both", expand=False, pady=(2, 0))
+        else:
+            self.log_panel.pack_forget()
+
+    def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
+        mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
+        menu = tk.Menu(mb, tearoff=0)
+        self._style_menu(menu)
+        menu.add_command(label="Моды", command=self._open_mod_manager)
+        menu.add_command(
+            label="Текстуры",
+            command=lambda: self._open_pack_list("textures"),
+        )
+        menu.add_command(
+            label="Шейдеры",
+            command=lambda: self._open_pack_list("shaders"),
+        )
+        mb["menu"] = menu
+        return mb
+
+    def _open_pack_list(self, which: str) -> None:
+        from pack_manager_ui import PACK_SHADERS, PACK_TEXTURES, PackListWindow
+
+        kind = PACK_TEXTURES if which == "textures" else PACK_SHADERS
+        PackListWindow(self.root, game_dir=self._game_dir(), kind=kind)
 
     def _create_utils_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
         mb = ttk.Menubutton(parent, text="Утилиты ▾", style="Tool.TButton")

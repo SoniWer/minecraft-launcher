@@ -43,6 +43,7 @@ hiddenimports = [
     "launcher_log",
     "disk_check",
     "minecraft_log_panel",
+    "pack_manager_ui",
     "build_dialog",
 ]
 
