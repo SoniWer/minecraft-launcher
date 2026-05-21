@@ -2,7 +2,7 @@
 
 Лаунчер **Minecraft Java Edition** на Python: отдельные сборки с модами, Modrinth, выбор Java, офлайн-никнейм.
 
-> **Скачать готовый лаунчер (Windows):** откройте [**Releases**](https://github.com/ВАШ_НИК/minecraft-launcher/releases) → последний релиз → **`MinecraftLauncher.exe`**.  
+> **Скачать готовый лаунчер (Windows):** откройте [**Releases**](https://github.com/SoniWer/minecraft-launcher/releases) → последний релиз → **`MinecraftLauncher.exe`**.  
 > Подробная инструкция для игроков: [docs/УСТАНОВКА.md](docs/УСТАНОВКА.md)
 
 ---
@@ -28,7 +28,7 @@
 ## Быстрый старт (разработка)
 
 ```powershell
-git clone https://github.com/ВАШ_НИК/minecraft-launcher.git
+git clone https://github.com/SoniWer/minecraft-launcher.git
 cd minecraft-launcher
 pip install -r requirements.txt
 python launcher.py
