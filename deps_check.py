@@ -119,7 +119,7 @@ def require_dependencies(*, offer_install: bool = True) -> None:
                 "Ошибка EXE",
                 "В сборке не хватает модулей:\n"
                 + ", ".join(parts)
-                + "\n\nПересоберите: .\\build_exe.ps1",
+                + "\n\nСкачайте новый EXE из Releases на GitHub.",
             )
             sys.exit(1)
         return

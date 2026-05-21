@@ -61,7 +61,7 @@ jobs:
             2. Положите в любую папку и запустите.
             3. При первом запуске создадутся `builds/` и `settings.json` рядом с EXE.
 
-            Подробная инструкция: [docs/УСТАНОВКА.md](https://github.com/${{ github.repository }}/blob/main/docs/УСТАНОВКА.md)
+            Инструкция: [README](https://github.com/${{ github.repository }}#установка)
           files: MinecraftLauncher.exe
           draft: false
           prerelease: false
