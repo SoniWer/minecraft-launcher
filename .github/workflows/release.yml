@@ -52,17 +52,8 @@ jobs:
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Minecraft Launcher ${{ steps.ver.outputs.tag }}
-          body: |
-            ## Скачать
-            Файл **MinecraftLauncher.exe** — готовый лаунчер для Windows (не нужен Python).
-
-            ## Установка
-            1. Скачайте `MinecraftLauncher.exe` из раздела Assets ниже.
-            2. Положите в любую папку и запустите.
-            3. При первом запуске создадутся `builds/` и `settings.json` рядом с EXE.
-
-            Инструкция: [README](https://github.com/${{ github.repository }}#установка)
+          body_path: .github/RELEASE_NOTES.md
           files: MinecraftLauncher.exe
           draft: false
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: false
