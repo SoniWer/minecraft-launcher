@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 
-from game_logs import latest_log, read_log_incremental
+from game_logs import read_log_incremental, resolve_log_file
 from theme import style_text_widget
 
 
@@ -16,11 +16,11 @@ class MinecraftLogPanel(ttk.LabelFrame):
         self,
         parent: tk.Misc,
         *,
-        get_game_dir: Callable[[], Path],
+        get_log_dirs: Callable[[], tuple[Path, Path]],
         colors,
     ) -> None:
         super().__init__(parent, text="Лог Minecraft", padding=(4, 4))
-        self.get_game_dir = get_game_dir
+        self.get_log_dirs = get_log_dirs
         self._colors = colors
         self._log_path: Path | None = None
         self._log_pos = 0
@@ -118,16 +118,17 @@ class MinecraftLogPanel(ttk.LabelFrame):
             self._poll_job = self.after(800, self._poll)
             return
 
-        game_dir = self.get_game_dir()
-        path = latest_log(game_dir)
+        game_dir, shared_dir = self.get_log_dirs()
+        path, hint = resolve_log_file(game_dir, shared_dir)
 
         if path != self._log_path:
             self._log_path = path
             self._log_pos = 0
-            self._clear_view()
+            if path is not None:
+                self._clear_view()
 
         if not path:
-            self._set_status("Нет logs/ — запустите Minecraft")
+            self._set_status(hint)
         else:
             chunk, new_pos, err = read_log_incremental(path, self._log_pos)
             if err:
@@ -138,11 +139,11 @@ class MinecraftLogPanel(ttk.LabelFrame):
                     self._append(chunk)
                 try:
                     kb = path.stat().st_size // 1024
-                    self._set_status(f"{path.name} · {kb} КБ")
+                    self._set_status(f"{hint} · {kb} КБ")
                 except OSError:
-                    self._set_status(path.name)
+                    self._set_status(hint)
 
-        delay = 350 if self._fast_poll else 1200
+        delay = 250 if self._fast_poll else 900
         self._poll_job = self.after(delay, self._poll)
 
     def _schedule_poll(self) -> None:

@@ -55,6 +55,8 @@ from java_manager import (
 )
 from jvm_args import parse_jvm_args
 from minecraft_log_panel import MinecraftLogPanel
+from skin_ui import SkinPanel
+from ui_assets import get_menu_icons
 from build_dialog import NewBuildDialog
 from ram_advisor import ram_hint_text, recommend_ram_gb
 from app_paths import launcher_dir
@@ -157,6 +159,7 @@ class MinecraftLauncherApp:
             on_session_end=self._on_play_session_end,
         )
         self._game_tracker.bind_root(self.root)
+        self._install_busy = False
 
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
         self._build_ui()
@@ -172,6 +175,14 @@ class MinecraftLauncherApp:
         if self.current_build:
             return self.current_build.game_dir(LAUNCHER_DIR)
         return Path(self.shared_dir)
+
+    def _build_root(self) -> Path | None:
+        if self.current_build:
+            return self.current_build.root(LAUNCHER_DIR)
+        return None
+
+    def _log_dirs(self) -> tuple[Path, Path]:
+        return self._game_dir(), Path(self.shared_dir)
 
     def _build_ui(self) -> None:
         shell = ttk.Frame(self.root, padding=(8, 6))
@@ -381,18 +392,29 @@ class MinecraftLauncherApp:
         self.play_btn.pack(fill="x", pady=4)
 
         self.game_status_var = tk.StringVar(value="MC не запущен")
-        ttk.Label(launch, textvariable=self.game_status_var, style="Status.TLabel").pack(anchor="w")
+        self.game_status_label = ttk.Label(
+            launch, textvariable=self.game_status_var, style="Status.TLabel"
+        )
+        self.game_status_label.pack(anchor="w")
         self.play_time_var = tk.StringVar(value="")
         ttk.Label(launch, textvariable=self.play_time_var, style="Hint.TLabel").pack(anchor="w")
 
+        self.skin_panel = SkinPanel(
+            launch,
+            get_build_root=self._build_root,
+            get_game_dir=self._game_dir,
+            get_username=lambda: self.username_var.get().strip(),
+            on_changed=self._save_current_build,
+        )
+        self.skin_panel.pack(fill="x", pady=4)
+
         row1 = ttk.Frame(launch)
         row1.pack(fill="x", pady=4)
-        self.stop_game_btn = ttk.Button(
-            row1, text="Стоп", style="Danger.TButton", command=self._kill_game, state="disabled"
-        )
-        self.stop_game_btn.pack(side="left")
         ttk.Button(row1, text="Modrinth", style="Tool.TButton", command=self._open_modrinth).pack(
             side="right"
+        )
+        ttk.Button(row1, text="CurseForge", style="Tool.TButton", command=self._open_curseforge).pack(
+            side="right", padx=(0, 4)
         )
 
         row2 = ttk.Frame(launch)
@@ -418,7 +440,9 @@ class MinecraftLauncherApp:
             command=self._toggle_log_panel,
         ).pack(side="left")
 
-        self.log_panel = MinecraftLogPanel(shell, get_game_dir=self._game_dir, colors=self._colors)
+        self.log_panel = MinecraftLogPanel(
+            shell, get_log_dirs=self._log_dirs, colors=self._colors
+        )
         if self.show_log_var.get():
             self.log_panel.grid(row=2, column=0, sticky="ew", pady=(2, 0))
         else:
@@ -515,8 +539,7 @@ class MinecraftLauncherApp:
             (self.btn_ram_recommend, "Подставить ОЗУ по числу модов"),
             (self.jvm_preset_combo, "Готовые наборы JVM-флагов"),
             (self.jvm_args_entry, "Дополнительные аргументы Java (-XX:…)"),
-            (self.play_btn, "Установить (если нужно) и запустить Minecraft"),
-            (self.stop_game_btn, "Завершить процесс, запущенный из лаунчера"),
+            (self.play_btn, "Запуск Minecraft; во время игры — красная кнопка «Стоп»"),
             (self.content_mb, "Моды, текстуры и шейдеры — вкл./выкл. как у модов"),
             (self.log_panel, "Лог игры latest.log; «Копировать» — в буфер обмена"),
             (self.filter_combo, "Какие версии показывать в списке"),
@@ -565,13 +588,23 @@ class MinecraftLauncherApp:
         mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
-        menu.add_command(label="Моды", command=self._open_mod_manager)
+        icons = get_menu_icons(self.root, self._colors)
         menu.add_command(
-            label="Текстуры",
+            label="  Моды",
+            image=icons["mods"],
+            compound="left",
+            command=self._open_mod_manager,
+        )
+        menu.add_command(
+            label="  Текстуры",
+            image=icons["textures"],
+            compound="left",
             command=lambda: self._open_pack_list("textures"),
         )
         menu.add_command(
-            label="Шейдеры",
+            label="  Шейдеры",
+            image=icons["shaders"],
+            compound="left",
             command=lambda: self._open_pack_list("shaders"),
         )
         mb["menu"] = menu
@@ -594,9 +627,43 @@ class MinecraftLauncherApp:
         menu.add_command(label="Скачать Java", command=self._download_java)
         menu.add_command(label="Тема", command=self._toggle_theme)
         menu.add_command(label="Обновление лаунчера", command=self._check_updates_manual)
+        menu.add_separator()
+        menu.add_command(label="Ключ CurseForge", command=self._edit_curseforge_key)
         mb["menu"] = menu
         self.btn_update = mb
         return mb
+
+    def _edit_curseforge_key(self) -> None:
+        key = simpledialog.askstring(
+            "CurseForge API",
+            "Ключ с https://console.curseforge.com/ :\n(сохраняется локально в settings.json)",
+            initialvalue=self.settings.curseforge_api_key,
+            parent=self.root,
+        )
+        if key is not None:
+            self.settings.curseforge_api_key = key.strip()
+            self.settings.save(LAUNCHER_DIR)
+            messagebox.showinfo("CurseForge", "Ключ сохранён.", parent=self.root)
+
+    def _open_curseforge(self) -> None:
+        if not self.settings.curseforge_api_key.strip():
+            if messagebox.askyesno(
+                "CurseForge",
+                "Нужен API-ключ CurseForge.\nУказать сейчас?",
+                parent=self.root,
+            ):
+                self._edit_curseforge_key()
+            if not self.settings.curseforge_api_key.strip():
+                return
+        from curseforge_ui import CurseForgeBrowser
+
+        CurseForgeBrowser(
+            self.root,
+            api_key=self.settings.curseforge_api_key,
+            game_dir=self._game_dir(),
+            get_mc_version=lambda: self.version_combo.get().strip(),
+            get_loader_id=self._loader_id,
+        )
 
     def _create_folders_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
         mb = ttk.Menubutton(parent, text="Папки ▾", style="Tool.TButton")
@@ -719,6 +786,8 @@ class MinecraftLauncherApp:
         self.settings.save(LAUNCHER_DIR)
         if hasattr(self, "log_panel"):
             self.log_panel.reset_source()
+        if hasattr(self, "skin_panel"):
+            self.skin_panel.refresh_preview()
 
     def _apply_username_combo(self) -> None:
         values = self.settings.saved_usernames or ["Player"]
@@ -906,14 +975,33 @@ class MinecraftLauncherApp:
     def _on_game_running_changed(self, running: bool) -> None:
         if hasattr(self, "log_panel"):
             self.log_panel.set_fast_poll(running)
+            if running:
+                self.log_panel.reset_source()
+        self._update_play_button(running)
         if running:
             self.game_status_var.set("● Minecraft запущен")
             self.game_status_label.configure(style="Success.TLabel")
-            self.stop_game_btn.configure(state="normal")
         else:
             self.game_status_var.set("Minecraft не запущен")
             self.game_status_label.configure(style="Status.TLabel")
-            self.stop_game_btn.configure(state="disabled")
+
+    def _update_play_button(self, game_running: bool | None = None) -> None:
+        if game_running is None:
+            game_running = self._game_tracker.running
+        if game_running:
+            self.play_btn.configure(
+                text="■  Стоп",
+                style="Stop.TButton",
+                command=self._kill_game,
+                state="normal",
+            )
+        else:
+            self.play_btn.configure(
+                text="▶  Играть",
+                style="Accent.TButton",
+                command=self._on_play,
+                state="normal" if self.versions else "disabled",
+            )
 
     def _kill_game(self) -> None:
         if self._game_tracker.kill():
@@ -1159,9 +1247,11 @@ class MinecraftLauncherApp:
         )
 
     def _set_busy(self, busy: bool) -> None:
-        self.play_btn.configure(state="disabled" if busy else "normal")
-        if not busy and not self.versions:
+        self._install_busy = busy
+        if busy:
             self.play_btn.configure(state="disabled")
+        else:
+            self._update_play_button()
         self.version_combo.configure(state="disabled" if busy else "readonly")
         self.build_combo.configure(state="disabled" if busy else "readonly")
         self.java_combo.configure(state="disabled" if busy else "readonly")
@@ -1336,6 +1426,11 @@ class MinecraftLauncherApp:
 
         self._save_current_build()
         game_dir.mkdir(parents=True, exist_ok=True)
+        (game_dir / "logs").mkdir(parents=True, exist_ok=True)
+        if hasattr(self, "skin_panel"):
+            self.skin_panel.apply_before_launch()
+        if hasattr(self, "log_panel"):
+            self.log_panel.reset_source()
         build_name = self.current_build.name
         extra_jvm = parse_jvm_args(self.jvm_args_var.get().strip())
 
@@ -1534,7 +1629,17 @@ def main() -> None:
         sys.exit(1)
 
     root = tk.Tk()
-    MinecraftLauncherApp(root)
+    root.withdraw()
+    settings = LauncherSettings.load(LAUNCHER_DIR)
+    apply_theme(root, dark=settings.dark_theme)
+
+    def start_app() -> None:
+        root.deiconify()
+        MinecraftLauncherApp(root)
+
+    from splash_screen import show_splash
+
+    show_splash(root, start_app)
     root.mainloop()
 
 

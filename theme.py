@@ -180,6 +180,11 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
     )
     style.configure("Tool.TButton", padding=pad_tool)
     style.configure("Danger.TButton", padding=pad_tool)
+    style.configure(
+        "Stop.TButton",
+        font=FONTS["play"],
+        padding=pad_btn,
+    )
 
     if not _using_sv_ttk():
         style.configure(
@@ -198,6 +203,16 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
             foreground=colors.fg,
         )
         style.map("Danger.TButton", background=[("active", "#5c3838")])
+        style.configure(
+            "Stop.TButton",
+            background=colors.danger,
+            foreground=colors.accent_fg,
+        )
+        style.map(
+            "Stop.TButton",
+            background=[("active", "#f07070"), ("disabled", "#555")],
+            foreground=[("disabled", "#aaa")],
+        )
 
 
 def _using_sv_ttk() -> bool:

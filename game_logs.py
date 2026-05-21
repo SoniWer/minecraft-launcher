@@ -8,9 +8,44 @@ import sys
 from pathlib import Path
 
 
-def latest_log(game_dir: Path) -> Path | None:
-    path = game_dir / "logs" / "latest.log"
-    return path if path.is_file() else None
+def _newest_log_in(log_dir: Path) -> Path | None:
+    if not log_dir.is_dir():
+        return None
+    logs = [p for p in log_dir.glob("*.log") if p.is_file()]
+    if not logs:
+        return None
+    return max(logs, key=lambda p: p.stat().st_mtime)
+
+
+def resolve_log_file(game_dir: Path, shared_dir: Path | None = None) -> tuple[Path | None, str]:
+    """Найти актуальный лог: сборка → .minecraft, latest.log или новейший *.log."""
+    bases: list[Path] = [game_dir.resolve()]
+    if shared_dir is not None:
+        shared = Path(shared_dir).resolve()
+        if shared not in bases:
+            bases.append(shared)
+
+    for base in bases:
+        latest = base / "logs" / "latest.log"
+        if latest.is_file():
+            return latest, f"{latest.parent.name}/{latest.name}"
+
+    for base in bases:
+        found = _newest_log_in(base / "logs")
+        if found is not None:
+            return found, f"{found.parent.name}/{found.name}"
+
+    for base in bases:
+        log_dir = base / "logs"
+        if log_dir.is_dir():
+            return None, f"Ждём лог в {log_dir}"
+
+    return None, "Папка logs/ появится после запуска MC"
+
+
+def latest_log(game_dir: Path, shared_dir: Path | None = None) -> Path | None:
+    path, _hint = resolve_log_file(game_dir, shared_dir)
+    return path
 
 
 def read_log_incremental(
