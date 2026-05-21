@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Версия релиза (например 1.0.0)"
+        description: "Версия релиза (например 1.1.0)"
         required: true
-        default: "1.0.0"
+        default: "1.1.0"
 
 permissions:
   contents: write
@@ -35,7 +35,25 @@ jobs:
         run: python .github/make_icon.py
 
       - name: Сборка MinecraftLauncher.exe
-        run: python -m PyInstaller .github/MinecraftLauncher.spec --noconfirm
+        run: |
+          python -m PyInstaller .github/MinecraftLauncher.spec --noconfirm --distpath . --workpath build
+
+      - name: Проверка EXE перед релизом
+        shell: pwsh
+        run: |
+          $exe = "MinecraftLauncher.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Error "Файл $exe не найден в корне репозитория."
+            Write-Host "Поиск EXE на диске:"
+            Get-ChildItem -Recurse -Filter MinecraftLauncher.exe | Format-Table FullName, Length
+            exit 1
+          }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1MB) {
+            Write-Error "Подозрительно маленький EXE: $size байт"
+            exit 1
+          }
+          Write-Host "OK: $exe ($([math]::Round($size/1MB, 2)) MB)"
 
       - name: Определение версии
         id: ver
@@ -54,6 +72,7 @@ jobs:
           name: Minecraft Launcher ${{ steps.ver.outputs.tag }}
           body_path: .github/RELEASE_NOTES.md
           files: MinecraftLauncher.exe
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
           generate_release_notes: false
