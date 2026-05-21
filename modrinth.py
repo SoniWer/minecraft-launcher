@@ -12,7 +12,7 @@ from urllib.parse import quote
 import requests
 
 MODRINTH_API = "https://api.modrinth.com/v2"
-USER_AGENT = "SenkoMinecraftLauncher/1.0 (github.com/local/minecraft-launcher)"
+USER_AGENT = "SenkoMinecraftLauncher/1.0 (github.com/SoniWer/minecraft-launcher)"
 
 CONTENT_FOLDERS = {
     "mod": "mods",
