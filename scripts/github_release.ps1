@@ -24,11 +24,18 @@ if (git status --porcelain) {
     git commit -m "Prepare release $tag"
 }
 
-git push origin main 2>$null
-if ($LASTEXITCODE -ne 0) { git push -u origin main }
+$prevEa = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+git push origin main *>$null
+if ($LASTEXITCODE -ne 0) { git push -u origin main *>$null }
 
-git tag -a $tag -m "Release $tag"
-git push origin $tag
+git tag -a $tag -m "Release $tag" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Tag $tag already exists locally"
+}
+git push origin $tag *>$null
+$ErrorActionPreference = $prevEa
+if ($LASTEXITCODE -ne 0) { throw "Failed to push tag $tag" }
 
 Write-Host "Tag $tag pushed. Wait 1-3 min for Actions to build EXE."
 $origin = git remote get-url origin 2>$null

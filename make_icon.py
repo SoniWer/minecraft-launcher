@@ -37,7 +37,7 @@ def main() -> None:
         format="ICO",
         sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)],
     )
-    print(f"Создан: {ico_path}")
+    print(f"Created: {ico_path}")
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ jobs:
           pip install -r requirements.txt pyinstaller pillow
 
       - name: Создание иконки
+        env:
+          PYTHONIOENCODING: utf-8
         run: python make_icon.py
 
       - name: Сборка MinecraftLauncher.exe
