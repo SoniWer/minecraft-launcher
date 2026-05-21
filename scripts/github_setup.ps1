@@ -60,7 +60,10 @@ git diff --cached --quiet 2>$null
 if ($LASTEXITCODE -ne 0) {
     git commit -m "README: repo links"
 }
-git push origin main 2>$null
+$prevEa = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+git push origin main *>$null
+$ErrorActionPreference = $prevEa
 
 Write-Host "Repo: https://github.com/$fullName"
 & "$Root\scripts\github_release.ps1" -Version $Version
