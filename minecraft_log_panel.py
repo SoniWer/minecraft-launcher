@@ -38,7 +38,7 @@ class MinecraftLogPanel(ttk.LabelFrame):
         )
 
         self.text = scrolledtext.ScrolledText(
-            self, wrap="none", height=10, font=("Consolas", 9), state="disabled"
+            self, wrap="none", height=6, font=("Consolas", 9), state="disabled"
         )
         self.text.pack(fill="both", expand=True)
         style_text_widget(self.text, colors)

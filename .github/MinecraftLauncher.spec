@@ -43,6 +43,7 @@ hiddenimports = [
     "launcher_log",
     "disk_check",
     "minecraft_log_panel",
+    "build_dialog",
 ]
 
 tmp_ret = collect_all("minecraft_launcher_lib")
