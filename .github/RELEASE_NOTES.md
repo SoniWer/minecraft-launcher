@@ -2,7 +2,11 @@
 
 Файл **MinecraftLauncher.exe** — готовый лаунчер для Windows (Python не нужен).
 
-## Что нового в v1.2.0
+## Что нового в v1.2.1
+
+- Исправлен запуск лаунчера (ошибка `log_panel`)
+
+## v1.2.0
 
 - Лог Minecraft **внизу главного окна** в реальном времени (`latest.log`)
 - В Modrinth при поиске **modpack и модов** — выбор загрузчика (Fabric, Forge, NeoForge, Quilt…)

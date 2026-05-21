@@ -457,7 +457,6 @@ class MinecraftLauncherApp:
         self.path_label = ttk.Label(main, text="", style="Hint.TLabel")
         self.path_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
         self._update_path_label()
-        self._register_tooltips()
 
         self.log_panel = MinecraftLogPanel(
             shell,
@@ -465,6 +464,7 @@ class MinecraftLauncherApp:
             colors=self._colors,
         )
         self.log_panel.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        self._register_tooltips()
 
     def _setup_drag_drop(self) -> None:
         enable_jar_drop(
