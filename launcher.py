@@ -179,6 +179,7 @@ class MinecraftLauncherApp:
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(0, weight=1)
         shell.rowconfigure(1, weight=0)
+        shell.rowconfigure(2, weight=0)
 
         scroll_host = ttk.Frame(shell)
         scroll_host.grid(row=0, column=0, sticky="nsew")
@@ -231,22 +232,28 @@ class MinecraftLauncherApp:
         left_nb.add(tab_build, text="Сборка")
         left_nb.add(tab_java, text="Java / ОЗУ")
 
+        tab_build.columnconfigure(1, weight=1)
+
+        ttk.Label(tab_build, text="Имя").grid(row=0, column=0, sticky="w", pady=3)
         build_row = ttk.Frame(tab_build)
-        build_row.pack(fill="x", pady=(0, 4))
-        ttk.Label(build_row, text="Имя").pack(side="left")
+        build_row.grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=3)
+        build_row.columnconfigure(0, weight=1)
         self.build_var = tk.StringVar()
         self.build_combo = ttk.Combobox(
             build_row, textvariable=self.build_var, width=14, state="readonly"
         )
-        self.build_combo.pack(side="left", padx=4, fill="x", expand=True)
+        self.build_combo.grid(row=0, column=0, sticky="ew", padx=(0, 4))
         self.build_combo.bind("<<ComboboxSelected>>", self._on_build_selected)
-        for text, cmd in (("+", self._create_build), ("⧉", self._clone_build), ("−", self._delete_build)):
-            ttk.Button(build_row, text=text, width=3, command=cmd).pack(side="left", padx=1)
+        for col, (text, cmd) in enumerate(
+            (("+", self._create_build), ("⧉", self._clone_build), ("−", self._delete_build)),
+            start=1,
+        ):
+            ttk.Button(build_row, text=text, width=3, command=cmd).grid(row=0, column=col, padx=1)
 
         self.build_summary_var = tk.StringVar(value="")
-        ttk.Label(tab_build, textvariable=self.build_summary_var, style="Hint.TLabel").pack(
-            anchor="w", pady=(0, 6)
-        )
+        ttk.Label(
+            tab_build, textvariable=self.build_summary_var, style="Hint.TLabel"
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
 
         def grid_row(parent, row, label, widget_factory):
             ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=3)
@@ -254,16 +261,15 @@ class MinecraftLauncherApp:
             w.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
             return w
 
-        tab_build.columnconfigure(1, weight=1)
         self.username_var = tk.StringVar(value="Player")
         self.username_entry = grid_row(
-            tab_build, 0, "Никнейм", lambda p: ttk.Combobox(p, textvariable=self.username_var)
+            tab_build, 2, "Никнейм", lambda p: ttk.Combobox(p, textvariable=self.username_var)
         )
         self.username_var.trace_add("write", self._on_settings_changed)
 
-        ttk.Label(tab_build, text="Версия MC").grid(row=1, column=0, sticky="w", pady=3)
+        ttk.Label(tab_build, text="Версия MC").grid(row=3, column=0, sticky="w", pady=3)
         ver_inner = ttk.Frame(tab_build)
-        ver_inner.grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=3)
+        ver_inner.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=3)
         ver_inner.columnconfigure(0, weight=1)
         self.version_combo = ttk.Combobox(ver_inner, state="disabled")
         self.version_combo.grid(row=0, column=0, sticky="ew")
@@ -276,7 +282,7 @@ class MinecraftLauncherApp:
         self.loader_var = tk.StringVar(value="Vanilla (без модов)")
         self.loader_combo = grid_row(
             tab_build,
-            2,
+            4,
             "Загрузчик",
             lambda p: ttk.Combobox(
                 p,
@@ -288,9 +294,9 @@ class MinecraftLauncherApp:
         self.loader_combo.bind("<<ComboboxSelected>>", self._on_loader_changed)
 
         self.loader_version_label = ttk.Label(tab_build, text="Верс. загр.")
-        self.loader_version_label.grid(row=3, column=0, sticky="w", pady=3)
+        self.loader_version_label.grid(row=5, column=0, sticky="w", pady=3)
         self.loader_version_combo = ttk.Combobox(tab_build, state="disabled")
-        self.loader_version_combo.grid(row=3, column=1, sticky="ew", padx=(6, 0), pady=3)
+        self.loader_version_combo.grid(row=5, column=1, sticky="ew", padx=(6, 0), pady=3)
         self.loader_version_combo.bind("<<ComboboxSelected>>", self._on_settings_changed)
         self._update_loader_version_visibility()
 
@@ -298,7 +304,7 @@ class MinecraftLauncherApp:
         self.filter_display_var = tk.StringVar(value="Релизы")
         self.filter_combo = grid_row(
             tab_build,
-            4,
+            6,
             "Список MC",
             lambda p: ttk.Combobox(
                 p,
@@ -414,9 +420,9 @@ class MinecraftLauncherApp:
 
         self.log_panel = MinecraftLogPanel(shell, get_game_dir=self._game_dir, colors=self._colors)
         if self.show_log_var.get():
-            self.log_panel.pack(fill="both", expand=False, pady=(2, 0))
+            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(2, 0))
         else:
-            self.log_panel.pack_forget()
+            self.log_panel.grid_remove()
 
         self._register_tooltips()
 
@@ -551,9 +557,9 @@ class MinecraftLauncherApp:
         self.settings.show_game_log = show
         self.settings.save(LAUNCHER_DIR)
         if show:
-            self.log_panel.pack(fill="both", expand=False, pady=(2, 0))
+            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(2, 0))
         else:
-            self.log_panel.pack_forget()
+            self.log_panel.grid_remove()
 
     def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
         mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
