@@ -47,8 +47,6 @@ hiddenimports = [
     "build_dialog",
     "splash_screen",
     "ui_assets",
-    "skin_ui",
-    "skin_manager",
     "curseforge",
     "curseforge_ui",
 ]

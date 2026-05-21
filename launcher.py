@@ -55,7 +55,6 @@ from java_manager import (
 )
 from jvm_args import parse_jvm_args
 from minecraft_log_panel import MinecraftLogPanel
-from skin_ui import SkinPanel
 from ui_assets import get_menu_icons
 from build_dialog import NewBuildDialog
 from ram_advisor import ram_hint_text, recommend_ram_gb
@@ -175,11 +174,6 @@ class MinecraftLauncherApp:
         if self.current_build:
             return self.current_build.game_dir(LAUNCHER_DIR)
         return Path(self.shared_dir)
-
-    def _build_root(self) -> Path | None:
-        if self.current_build:
-            return self.current_build.root(LAUNCHER_DIR)
-        return None
 
     def _log_dirs(self) -> tuple[Path, Path]:
         return self._game_dir(), Path(self.shared_dir)
@@ -398,15 +392,6 @@ class MinecraftLauncherApp:
         self.game_status_label.pack(anchor="w")
         self.play_time_var = tk.StringVar(value="")
         ttk.Label(launch, textvariable=self.play_time_var, style="Hint.TLabel").pack(anchor="w")
-
-        self.skin_panel = SkinPanel(
-            launch,
-            get_build_root=self._build_root,
-            get_game_dir=self._game_dir,
-            get_username=lambda: self.username_var.get().strip(),
-            on_changed=self._save_current_build,
-        )
-        self.skin_panel.pack(fill="x", pady=4)
 
         row1 = ttk.Frame(launch)
         row1.pack(fill="x", pady=4)
@@ -786,8 +771,6 @@ class MinecraftLauncherApp:
         self.settings.save(LAUNCHER_DIR)
         if hasattr(self, "log_panel"):
             self.log_panel.reset_source()
-        if hasattr(self, "skin_panel"):
-            self.skin_panel.refresh_preview()
 
     def _apply_username_combo(self) -> None:
         values = self.settings.saved_usernames or ["Player"]
@@ -1427,8 +1410,6 @@ class MinecraftLauncherApp:
         self._save_current_build()
         game_dir.mkdir(parents=True, exist_ok=True)
         (game_dir / "logs").mkdir(parents=True, exist_ok=True)
-        if hasattr(self, "skin_panel"):
-            self.skin_panel.apply_before_launch()
         if hasattr(self, "log_panel"):
             self.log_panel.reset_source()
         build_name = self.current_build.name

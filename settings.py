@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 SETTINGS_NAME = "settings.json"
+CURSEFORGE_KEY_FILE = "curseforge.key"
 MAX_RECENT_BUILDS = 5
 MAX_SAVED_USERNAMES = 8
 
@@ -46,9 +47,14 @@ class LauncherSettings:
                     kwargs[key] = bool(val)
                 else:
                     kwargs[key] = val
-            return cls(**kwargs)
+            inst = cls(**kwargs)
         except (json.JSONDecodeError, TypeError, KeyError, ValueError):
-            return cls()
+            inst = cls()
+        if not inst.curseforge_api_key:
+            key_path = launcher_dir / CURSEFORGE_KEY_FILE
+            if key_path.is_file():
+                inst.curseforge_api_key = key_path.read_text(encoding="utf-8").strip()
+        return inst
 
     def save(self, launcher_dir: Path) -> None:
         path = launcher_dir / SETTINGS_NAME
