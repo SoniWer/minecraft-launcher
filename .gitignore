@@ -4,7 +4,6 @@ backups/
 java/
 tools/
 settings.json
-curseforge.key
 launcher.log
 
 # EXE только в GitHub Releases

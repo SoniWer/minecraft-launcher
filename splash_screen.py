@@ -20,26 +20,24 @@ def show_splash(parent: tk.Tk, on_done: Callable[[], None], *, duration_ms: int 
     splash.attributes("-topmost", True)
 
     w, h = 320, 200
-    splash.geometry(f"{w}x{h}")
     splash.update_idletasks()
-    px = parent.winfo_x() + (parent.winfo_width() - w) // 2
-    py = parent.winfo_y() + (parent.winfo_height() - h) // 2
-    if parent.winfo_width() < 10:
-        px = (splash.winfo_screenwidth() - w) // 2
-        py = (splash.winfo_screenheight() - h) // 2
-    splash.geometry(f"+{px}+{py}")
+    sw = splash.winfo_screenwidth()
+    sh = splash.winfo_screenheight()
+    px = max(0, (sw - w) // 2)
+    py = max(0, (sh - h) // 2)
+    splash.geometry(f"{w}x{h}+{px}+{py}")
 
     canvas = tk.Canvas(splash, width=w, height=h, bg=bg, highlightthickness=0, bd=0)
     canvas.pack(fill="both", expand=True)
 
     logo = render_launcher_logo(96, master=splash)
-    img_id = canvas.create_image(w // 2, 72, image=logo)
+    canvas.create_image(w // 2, 72, image=logo)
     splash._splash_logo = logo  # type: ignore[attr-defined]
 
-    title_id = canvas.create_text(
+    canvas.create_text(
         w // 2, 130, text="Minecraft Launcher", fill=fg, font=("Segoe UI", 14, "bold")
     )
-    sub_id = canvas.create_text(w // 2, 152, text="Загрузка…", fill=accent, font=("Segoe UI", 9))
+    canvas.create_text(w // 2, 152, text="Загрузка…", fill=accent, font=("Segoe UI", 9))
     bar_bg = canvas.create_rectangle(40, 168, w - 40, 178, fill="#2f2f36", outline="")
     bar_fg = canvas.create_rectangle(40, 168, 40, 178, fill=accent, outline="")
 

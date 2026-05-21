@@ -47,8 +47,7 @@ hiddenimports = [
     "build_dialog",
     "splash_screen",
     "ui_assets",
-    "curseforge",
-    "curseforge_ui",
+    "modrinth_icons",
 ]
 
 tmp_ret = collect_all("minecraft_launcher_lib")

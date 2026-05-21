@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from theme import theme_for_child
+from modrinth_icons import get_modrinth_icon
 from modrinth import (
     CONTENT_FOLDERS,
     LOADER_IDS,
@@ -171,16 +172,16 @@ class ModrinthBrowser(tk.Toplevel):
         list_frame = ttk.Frame(self)
         list_frame.pack(fill="both", expand=True, padx=10, pady=4)
 
-        columns = ("title", "downloads", "description")
+        columns = ("downloads", "description")
         self.tree = ttk.Treeview(
-            list_frame, columns=columns, show="headings", selectmode="browse"
+            list_frame, columns=columns, show="tree headings", selectmode="browse"
         )
-        self.tree.heading("title", text="Название")
+        self.tree.heading("#0", text="Название")
         self.tree.heading("downloads", text="Скачивания")
         self.tree.heading("description", text="Описание")
-        self.tree.column("title", width=220, stretch=False)
-        self.tree.column("downloads", width=90, stretch=False)
-        self.tree.column("description", width=360)
+        self.tree.column("#0", width=260, stretch=False)
+        self.tree.column("downloads", width=90, stretch=False, anchor="center")
+        self.tree.column("description", width=340)
         self.tree.tag_configure("installed", background="#c8e6c9", foreground="#1b5e20")
         scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
@@ -338,18 +339,39 @@ class ModrinthBrowser(tk.Toplevel):
         if len(desc) > 120:
             desc = desc[:117] + "..."
         tags = ("installed",) if hit.get("_installed") else ()
+        icon = get_modrinth_icon(hit.get("icon_url"), master=self)
         iid = self.tree.insert(
             "",
             "end",
-            values=(
-                self._format_title(hit),
-                hit.get("downloads", 0),
-                desc,
-            ),
+            text=self._format_title(hit),
+            image=icon if icon else "",
+            values=(hit.get("downloads", 0), desc),
             tags=tags,
         )
         self._hit_by_iid[iid] = hit
+        if not icon and hit.get("icon_url"):
+            self._schedule_icon_load(iid, hit.get("icon_url"))
         return iid
+
+    def _schedule_icon_load(self, iid: str, icon_url: str | None) -> None:
+        if not icon_url:
+            return
+
+        def worker() -> None:
+            icon = get_modrinth_icon(icon_url, master=self)
+
+            def apply() -> None:
+                if not self._is_alive():
+                    return
+                try:
+                    if self.tree.exists(iid) and icon:
+                        self.tree.item(iid, image=icon)
+                except tk.TclError:
+                    pass
+
+            self._schedule_ui(apply)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _update_hit_row(self, iid: str, hit: dict) -> None:
         if not self._is_alive():
@@ -365,7 +387,8 @@ class ModrinthBrowser(tk.Toplevel):
         tags = ("installed",) if hit.get("_installed") else ()
         self.tree.item(
             iid,
-            values=(self._format_title(hit), hit.get("downloads", 0), desc),
+            text=self._format_title(hit),
+            values=(hit.get("downloads", 0), desc),
             tags=tags,
         )
 

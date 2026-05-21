@@ -1,14 +1,10 @@
-"""Иконки меню и логотип лаунчера (Pillow → PhotoImage)."""
+"""Логотип лаунчера для заставки."""
 
 from __future__ import annotations
 
 import tkinter as tk
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from theme import ThemeColors
-
-_ICON_CACHE: dict[tuple[str, int, bool], tk.PhotoImage] = {}
+_ICON_CACHE: dict[tuple[str, int], tk.PhotoImage] = {}
 
 
 def _pillow():
@@ -20,11 +16,11 @@ def _pillow():
 def _photo(img, master: tk.Misc | None = None) -> tk.PhotoImage:
     from PIL import ImageTk
 
-    return ImageTk.PhotoImage(img)
+    return ImageTk.PhotoImage(img, master=master)
 
 
 def render_launcher_logo(size: int = 128, *, master: tk.Misc | None = None) -> tk.PhotoImage:
-    key = ("logo", size, True)
+    key = ("logo", size)
     if key in _ICON_CACHE:
         return _ICON_CACHE[key]
     Image, ImageDraw = _pillow()
@@ -53,67 +49,3 @@ def render_launcher_logo(size: int = 128, *, master: tk.Misc | None = None) -> t
     photo = _photo(img, master)
     _ICON_CACHE[key] = photo
     return photo
-
-
-def _icon_mod(size: int, colors: ThemeColors):
-    Image, ImageDraw = _pillow()
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle((2, 2, size - 2, size - 2), radius=4, fill=colors.accent)
-    d.rectangle((size // 4, size // 3, 3 * size // 4, 2 * size // 3), fill=colors.accent_fg)
-    return img
-
-
-def _icon_texture(size: int, colors: ThemeColors):
-    Image, ImageDraw = _pillow()
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    for i in range(4):
-        for j in range(4):
-            c = (90, 150, 200, 255) if (i + j) % 2 == 0 else (200, 120, 80, 255)
-            d.rectangle(
-                (2 + i * (size - 4) // 4, 2 + j * (size - 4) // 4,
-                 2 + (i + 1) * (size - 4) // 4, 2 + (j + 1) * (size - 4) // 4),
-                fill=c,
-            )
-    return img
-
-
-def _icon_shader(size: int, colors: ThemeColors):
-    Image, ImageDraw = _pillow()
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.ellipse((2, 2, size - 2, size - 2), fill=(120, 80, 200, 255))
-    d.polygon(
-        [(size // 2, size // 5), (4 * size // 5, 4 * size // 5), (size // 5, 4 * size // 5)],
-        fill=(220, 200, 255, 230),
-    )
-    return img
-
-
-def get_menu_icons(root: tk.Misc, colors: ThemeColors, *, size: int = 18) -> dict[str, tk.PhotoImage]:
-    """Иконки для пунктов меню «Контент» (хранить ссылку на root)."""
-    dark = getattr(root, "_launcher_dark", True)
-    cache_key = ("menu", size, dark)
-    if hasattr(root, "_launcher_menu_icons") and root._launcher_menu_icons_key == cache_key:  # type: ignore[attr-defined]
-        return root._launcher_menu_icons  # type: ignore[attr-defined]
-
-    makers = {
-        "mods": _icon_mod,
-        "textures": _icon_texture,
-        "shaders": _icon_shader,
-    }
-    icons: dict[str, tk.PhotoImage] = {}
-    for name, maker in makers.items():
-        key = (name, size, dark)
-        if key in _ICON_CACHE:
-            icons[name] = _ICON_CACHE[key]
-            continue
-        img = maker(size, colors)
-        photo = _photo(img, root)
-        _ICON_CACHE[key] = photo
-        icons[name] = photo
-
-    root._launcher_menu_icons = icons  # type: ignore[attr-defined]
-    root._launcher_menu_icons_key = cache_key  # type: ignore[attr-defined]
-    return icons

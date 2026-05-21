@@ -2,15 +2,16 @@
 
 Файл **MinecraftLauncher.exe** — готовый лаунчер для Windows (Python не нужен).
 
-## Что нового в v1.3.1
+## Что нового в v1.3.2
 
-- Удалены скины и плащи
-- CurseForge: ключ из файла `curseforge.key` рядом с EXE (см. README)
+- Заставка по центру экрана
+- В каталоге Modrinth — иконки проектов рядом с названиями
+- Удалены CurseForge и цветные иконки в меню
+- Ровнее выровнены подписи и кнопки (без смены темы)
 
 ## Установка
 
 1. Скачайте `MinecraftLauncher.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
-3. Для CurseForge создайте рядом с EXE файл `curseforge.key` с API-ключом (одна строка).
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)
