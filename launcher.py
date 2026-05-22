@@ -1567,8 +1567,12 @@ class MinecraftLauncherApp:
                 self.btn_update.configure(text="Утилиты")
             if getattr(sys, "frozen", False):
                 self.status_var.set("Перезапуск…")
-                self.root.quit()
-                return
+                self.root.update_idletasks()
+                try:
+                    self.root.destroy()
+                except tk.TclError:
+                    pass
+                os._exit(0)
             messagebox.showinfo(
                 "Обновление",
                 f"Файл сохранён:\n{dest}\n\nЗапущена новая версия.",

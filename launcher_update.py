@@ -128,38 +128,59 @@ def download_update(
     return dest
 
 
+def _ps_literal(path: Path) -> str:
+    """Путь для одинарных кавычек в PowerShell."""
+    return str(path.resolve()).replace("'", "''")
+
+
 def _schedule_windows_restart(
     new_exe: Path,
     *,
     parent_pid: int,
     remove_exe: Path | None,
 ) -> None:
-    script = launcher_dir() / "_launcher_update.bat"
-    remove_line = ""
+    """Фоновый скрипт без окна: ждёт выход лаунчера, удаляет старый EXE, запускает новый."""
+    folder = launcher_dir()
+    script = folder / "_launcher_update.ps1"
+    new_path = _ps_literal(new_exe)
+    remove_block = ""
     if remove_exe is not None and remove_exe.resolve() != new_exe.resolve():
-        remove_line = f'if exist "{remove_exe}" del /F /Q "{remove_exe}"\r\n'
-    content = (
-        "@echo off\r\n"
-        "chcp 65001 >nul\r\n"
-        ":wait\r\n"
-        f'tasklist /FI "PID eq {parent_pid}" 2>nul | find "{parent_pid}" >nul\r\n'
-        "if not errorlevel 1 (\r\n"
-        "  timeout /t 1 /nobreak >nul\r\n"
-        "  goto wait\r\n"
-        ")\r\n"
-        f"{remove_line}"
-        f'start "" "{new_exe}"\r\n'
-        "del /F /Q \"%~f0\"\r\n"
-    )
-    script.write_text(content, encoding="utf-8")
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
-        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
-    )
+        old_path = _ps_literal(remove_exe)
+        remove_block = f"""
+$old = '{old_path}'
+if (Test-Path -LiteralPath $old) {{
+    Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue
+}}
+"""
+    content = f"""$ErrorActionPreference = 'SilentlyContinue'
+$pidToWait = {parent_pid}
+$deadline = (Get-Date).AddSeconds(90)
+while ((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {{
+    Start-Sleep -Milliseconds 400
+}}
+{remove_block}
+Start-Process -FilePath '{new_path}'
+Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+"""
+    script.write_text(content, encoding="utf-8-sig")
+    legacy_bat = folder / "_launcher_update.bat"
+    legacy_bat.unlink(missing_ok=True)
+
+    create_no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.Popen(
-        ["cmd", "/c", str(script)],
-        creationflags=flags,
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-File",
+            str(script),
+        ],
+        creationflags=create_no_window,
         close_fds=True,
-        cwd=str(script.parent),
+        cwd=str(folder),
     )
 
 
