@@ -41,8 +41,8 @@ class PackListWindow(tk.Toplevel):
         self.modrinth_window_factory = modrinth_window_factory
 
         self.title(f"{kind.title} — {game_dir.name}")
-        self.geometry("680x400")
-        self.minsize(560, 320)
+        self.geometry("680x480")
+        self.minsize(560, 400)
 
         self._entries: list[dict] = []
         self._build_ui()

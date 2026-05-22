@@ -79,8 +79,8 @@ class ModrinthBrowser(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title("Каталог Modrinth")
-        self.geometry("840x720")
-        self.minsize(760, 660)
+        self.geometry("840x800")
+        self.minsize(760, 740)
 
         self._hits: list[dict] = []
         self._hit_by_iid: dict[str, dict] = {}

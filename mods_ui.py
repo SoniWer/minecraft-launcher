@@ -39,8 +39,8 @@ class ModManagerWindow(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title(f"Моды — {game_dir.name}")
-        self.geometry("760x440")
-        self.minsize(640, 380)
+        self.geometry("760x520")
+        self.minsize(640, 460)
 
         self._entries: list[dict] = []
         self._updates: dict[str, ModUpdateInfo] = {}
