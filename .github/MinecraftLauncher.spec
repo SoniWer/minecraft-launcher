@@ -48,6 +48,8 @@ hiddenimports = [
     "splash_screen",
     "ui_assets",
     "modrinth_icons",
+    "ui_layout",
+    "ui_focus",
 ]
 
 tmp_ret = collect_all("minecraft_launcher_lib")

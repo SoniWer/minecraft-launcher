@@ -38,22 +38,24 @@ jobs:
         run: |
           python -m PyInstaller .github/MinecraftLauncher.spec --noconfirm --distpath . --workpath build
 
-      - name: Проверка EXE перед релизом
+      - name: Проверка EXE и переименование с версией
         shell: pwsh
         run: |
           $exe = "MinecraftLauncher.exe"
           if (-not (Test-Path $exe)) {
             Write-Error "Файл $exe не найден в корне репозитория."
-            Write-Host "Поиск EXE на диске:"
             Get-ChildItem -Recurse -Filter MinecraftLauncher.exe | Format-Table FullName, Length
             exit 1
           }
-          $size = (Get-Item $exe).Length
+          $ver = python -c "from version import LAUNCHER_VERSION; print(LAUNCHER_VERSION)"
+          $versioned = "MinecraftLauncher-v$ver.exe"
+          Copy-Item $exe $versioned -Force
+          $size = (Get-Item $versioned).Length
           if ($size -lt 1MB) {
             Write-Error "Подозрительно маленький EXE: $size байт"
             exit 1
           }
-          Write-Host "OK: $exe ($([math]::Round($size/1MB, 2)) MB)"
+          Write-Host "OK: $versioned ($([math]::Round($size/1MB, 2)) MB)"
 
       - name: Определение версии
         id: ver
@@ -61,8 +63,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "exe=MinecraftLauncher-v${{ inputs.version }}.exe" >> $GITHUB_OUTPUT
           else
             echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+            V="${GITHUB_REF_NAME#v}"
+            echo "exe=MinecraftLauncher-v${V}.exe" >> $GITHUB_OUTPUT
           fi
 
       - name: Публикация GitHub Release
@@ -71,7 +76,9 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Minecraft Launcher ${{ steps.ver.outputs.tag }}
           body_path: .github/RELEASE_NOTES.md
-          files: MinecraftLauncher.exe
+          files: |
+            MinecraftLauncher.exe
+            ${{ steps.ver.outputs.exe }}
           fail_on_unmatched_files: true
           draft: false
           prerelease: false

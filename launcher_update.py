@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import requests
 
-from version import GITHUB_REPO, LAUNCHER_VERSION
+from version import GITHUB_REPO, LAUNCHER_VERSION, launcher_exe_name
 
 _API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 _TIMEOUT = 12
@@ -48,8 +48,10 @@ def check_for_update() -> UpdateInfo | None:
     latest = tag.lstrip("v")
     page = str(data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases"))
     download = page
+    expected = launcher_exe_name().lower()
     for asset in data.get("assets") or []:
-        if str(asset.get("name", "")).lower() == "minecraftlauncher.exe":
+        name = str(asset.get("name", "")).lower()
+        if name == expected or name == "minecraftlauncher.exe":
             download = str(asset.get("browser_download_url", page))
             break
 

@@ -59,7 +59,7 @@ from build_dialog import NewBuildDialog
 from ram_advisor import ram_hint_text, recommend_ram_gb
 from app_paths import launcher_dir
 from settings import LauncherSettings
-from theme import apply_theme, style_canvas, style_text_widget
+from theme import apply_theme, style_text_widget
 from ui_focus import install_no_autoselect
 from ui_layout import (
     BTN_GAP,
@@ -146,7 +146,7 @@ class MinecraftLauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(f"Minecraft Launcher v{LAUNCHER_VERSION}")
-        self.root.minsize(900, 540)
+        self.root.minsize(940, 600)
 
         self.shared_dir = minecraft_launcher_lib.utils.get_minecraft_directory()
         self.versions: list[dict] = []
@@ -165,7 +165,7 @@ class MinecraftLauncherApp:
                 f"{self.settings.window_width}x{self.settings.window_height}"
             )
         else:
-            self.root.geometry("960x580")
+            self.root.geometry("980x640")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
@@ -197,39 +197,12 @@ class MinecraftLauncherApp:
         shell = ttk.Frame(self.root, padding=SHELL_PAD)
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
-        shell.rowconfigure(0, weight=1, minsize=420)
+        shell.rowconfigure(0, weight=0)
         shell.rowconfigure(1, weight=0)
-        shell.rowconfigure(2, weight=0, minsize=0)
+        shell.rowconfigure(2, weight=0)
 
-        scroll_host = ttk.Frame(shell)
-        scroll_host.grid(row=0, column=0, sticky="nsew")
-        scroll_host.columnconfigure(0, weight=1)
-        scroll_host.rowconfigure(0, weight=1)
-
-        self._main_canvas = tk.Canvas(scroll_host, highlightthickness=0, borderwidth=0)
-        style_canvas(self._main_canvas, self._colors)
-        vsb = ttk.Scrollbar(scroll_host, orient="vertical", command=self._main_canvas.yview)
-        self._main_canvas.grid(row=0, column=0, sticky="nsew")
-        vsb.grid(row=0, column=1, sticky="ns")
-        self._main_canvas.configure(yscrollcommand=vsb.set)
-
-        main = ttk.Frame(self._main_canvas)
-        self._main_canvas_window = self._main_canvas.create_window(
-            (0, 0), window=main, anchor="nw"
-        )
-        main.bind(
-            "<Configure>",
-            lambda _e: self._main_canvas.configure(
-                scrollregion=self._main_canvas.bbox("all")
-            ),
-        )
-        self._main_canvas.bind(
-            "<Configure>",
-            lambda e: self._main_canvas.itemconfigure(
-                self._main_canvas_window, width=e.width
-            ),
-        )
-        self._bind_mousewheel(self._main_canvas)
+        main = ttk.Frame(shell)
+        main.grid(row=0, column=0, sticky="new")
 
         app_header(main, "Minecraft Launcher", f"v{LAUNCHER_VERSION}")
 
@@ -416,7 +389,7 @@ class MinecraftLauncherApp:
         self._update_path_label()
 
         log_bar = ttk.Frame(shell)
-        log_bar.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        log_bar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         self.show_log_var = tk.BooleanVar(value=self.settings.show_game_log)
         ttk.Checkbutton(
             log_bar,
@@ -429,7 +402,8 @@ class MinecraftLauncherApp:
             shell, get_log_dirs=self._log_dirs, colors=self._colors
         )
         if self.show_log_var.get():
-            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+            self._ensure_window_height(700)
         else:
             self.log_panel.grid_remove()
 
@@ -447,6 +421,17 @@ class MinecraftLauncherApp:
             install_no_autoselect(combo, var)
 
         self._register_tooltips()
+        self._update_content_menu_state()
+        self.root.after(50, self._fit_window_to_content)
+
+    def _ensure_window_height(self, min_h: int) -> None:
+        if self.root.winfo_height() < min_h:
+            self.root.geometry(f"{max(self.root.winfo_width(), 980)}x{min_h}")
+
+    def _fit_window_to_content(self) -> None:
+        self.root.update_idletasks()
+        need_h = 640 if not self.show_log_var.get() else 700
+        self._ensure_window_height(need_h)
 
     def _setup_drag_drop(self) -> None:
         enable_jar_drop(
@@ -560,48 +545,50 @@ class MinecraftLauncherApp:
             text=f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
         )
 
-    def _bind_mousewheel(self, canvas: tk.Canvas) -> None:
-        def _on_wheel(event: tk.Event) -> None:
-            canvas.yview_scroll(int(-event.delta / 120), "units")
-
-        def _bind(_event: object | None = None) -> None:
-            canvas.bind_all("<MouseWheel>", _on_wheel)
-
-        def _unbind(_event: object | None = None) -> None:
-            canvas.unbind_all("<MouseWheel>")
-
-        canvas.bind("<Enter>", _bind)
-        canvas.bind("<Leave>", _unbind)
-
     def _toggle_log_panel(self) -> None:
         show = self.show_log_var.get()
         self.settings.show_game_log = show
         self.settings.save(LAUNCHER_DIR)
         if show:
-            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(6, 0))
-            h = max(self.root.winfo_height(), 580)
-            if self.root.winfo_height() < h:
-                self.root.geometry(f"{self.root.winfo_width()}x{h}")
+            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+            self._ensure_window_height(700)
         else:
             self.log_panel.grid_remove()
+            self._ensure_window_height(640)
 
     def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
         mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
-        menu = tk.Menu(mb, tearoff=0)
-        self._style_menu(menu)
-        menu.add_command(label="Моды", command=self._open_mod_manager)
-        menu.add_command(
+        self._content_menu = tk.Menu(mb, tearoff=0)
+        self._style_menu(self._content_menu)
+        self._content_menu.add_command(label="Моды", command=self._open_mod_manager)
+        self._content_menu.add_command(
             label="Текстуры",
             command=lambda: self._open_pack_list("textures"),
         )
-        menu.add_command(
+        self._content_menu.add_command(
             label="Шейдеры",
             command=lambda: self._open_pack_list("shaders"),
         )
-        mb["menu"] = menu
+        mb["menu"] = self._content_menu
         return mb
 
+    def _update_content_menu_state(self) -> None:
+        vanilla = self._loader_id() == "vanilla"
+        state = tk.DISABLED if vanilla else tk.NORMAL
+        try:
+            self._content_menu.entryconfig(0, state=state)
+            self._content_menu.entryconfig(2, state=state)
+        except (tk.TclError, AttributeError):
+            pass
+
     def _open_pack_list(self, which: str) -> None:
+        if which == "shaders" and self._loader_id() == "vanilla":
+            messagebox.showinfo(
+                "Шейдеры",
+                "Шейдеры недоступны для Vanilla.\nВыберите Fabric, Forge или другой загрузчик.",
+                parent=self.root,
+            )
+            return
         from pack_manager_ui import PACK_SHADERS, PACK_TEXTURES, PackListWindow
 
         kind = PACK_TEXTURES if which == "textures" else PACK_SHADERS
@@ -743,6 +730,7 @@ class MinecraftLauncherApp:
         self.settings.save(LAUNCHER_DIR)
         if hasattr(self, "log_panel"):
             self.log_panel.reset_source()
+        self._update_content_menu_state()
 
     def _apply_username_combo(self) -> None:
         values = self.settings.saved_usernames or ["Player"]
@@ -894,6 +882,7 @@ class MinecraftLauncherApp:
 
     def _on_loader_changed(self, _event: object | None = None) -> None:
         self._update_loader_version_visibility()
+        self._update_content_menu_state()
         self._apply_filter()
         self._refresh_loader_versions_async()
         self._update_ram_hint()
@@ -976,7 +965,6 @@ class MinecraftLauncherApp:
         self.settings.dark_theme = not self.settings.dark_theme
         self.settings.save(LAUNCHER_DIR)
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
-        style_canvas(self._main_canvas, self._colors)
         style_text_widget(self.log_panel.text, self._colors)
 
     def _export_backup(self) -> None:
@@ -1119,6 +1107,13 @@ class MinecraftLauncherApp:
         self._save_current_build()
 
     def _open_mod_manager(self) -> None:
+        if self._loader_id() == "vanilla":
+            messagebox.showinfo(
+                "Моды",
+                "Моды недоступны для Vanilla.\nВыберите Fabric, Forge или другой загрузчик.",
+                parent=self.root,
+            )
+            return
         from mods_ui import ModManagerWindow
 
         mc_version = self.version_combo.get().strip()

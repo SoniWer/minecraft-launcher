@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -17,7 +18,9 @@ if TYPE_CHECKING:
 
 _BYTES_CACHE: dict[str, bytes] = {}
 _CACHE_LOCK = threading.Lock()
-_MAX_CACHE = 256
+_MAX_CACHE = 384
+_ICON_WORKERS = 16
+_ICON_TIMEOUT = 8
 
 
 def _fetch_bytes(url: str) -> bytes | None:
@@ -27,7 +30,9 @@ def _fetch_bytes(url: str) -> bytes | None:
         if url in _BYTES_CACHE:
             return _BYTES_CACHE[url]
     try:
-        resp = requests.get(url, timeout=12, headers={"User-Agent": USER_AGENT})
+        resp = requests.get(
+            url, timeout=_ICON_TIMEOUT, headers={"User-Agent": USER_AGENT}
+        )
         if resp.status_code != 200:
             return None
         data = resp.content
@@ -40,7 +45,7 @@ def _fetch_bytes(url: str) -> bytes | None:
     return data
 
 
-def fetch_icon_rgba(url: str | None, *, size: int = 32) -> Any | None:
+def fetch_icon_rgba(url: str | None, *, size: int = 28) -> Any | None:
     """PIL.Image RGBA — можно вызывать из фонового потока."""
     raw = _fetch_bytes(url) if url else None
     if not raw:
@@ -76,12 +81,23 @@ def load_icons_batch(
     size: int = 28,
     on_done: Callable[[list[tuple[str, Any]]], None],
 ) -> None:
-    """Загрузить иконки в фоне; on_done вызывается из фонового потока — планируйте UI сами."""
+    """Параллельная загрузка иконок; on_done — из фонового потока."""
 
     def worker() -> None:
         out: list[tuple[str, Any]] = []
-        for iid, url in items:
-            out.append((iid, fetch_icon_rgba(url, size=size)))
+
+        def load_one(item: tuple[str, str | None]) -> tuple[str, Any]:
+            iid, url = item
+            return iid, fetch_icon_rgba(url, size=size)
+
+        with ThreadPoolExecutor(max_workers=_ICON_WORKERS) as pool:
+            futures = {pool.submit(load_one, item): item for item in items}
+            for future in as_completed(futures):
+                try:
+                    out.append(future.result())
+                except Exception:
+                    iid, _url = futures[future]
+                    out.append((iid, fetch_icon_rgba(None, size=size)))
         on_done(out)
 
     threading.Thread(target=worker, daemon=True).start()

@@ -160,6 +160,20 @@ def get_latest_primary_filename(
     return file_info["filename"] if file_info else None
 
 
+def version_filenames(version: dict[str, Any]) -> list[str]:
+    names: list[str] = []
+    for file_info in version.get("files") or []:
+        fn = file_info.get("filename")
+        if fn:
+            names.append(str(fn))
+    primary = pick_primary_file(version)
+    if primary:
+        fn = primary.get("filename")
+        if fn and fn not in names:
+            names.append(str(fn))
+    return names
+
+
 def project_is_installed(
     project_id: str,
     *,
@@ -168,7 +182,7 @@ def project_is_installed(
     loader: str | None,
     installed_files: set[str],
     check_files: bool = True,
-    max_versions: int = 12,
+    max_versions: int = 16,
 ) -> tuple[bool, str | None]:
     """Проверяет, есть ли в папке файл любой из совместимых версий проекта."""
     try:
@@ -182,14 +196,11 @@ def project_is_installed(
         versions = []
 
     for version in versions[:max_versions]:
-        file_info = pick_primary_file(version)
-        if not file_info:
-            continue
-        filename = file_info["filename"]
-        if not check_files:
-            return False, filename
-        if filename.lower() in installed_files:
-            return True, filename
+        for filename in version_filenames(version):
+            if not check_files:
+                return False, filename
+            if filename.lower() in installed_files:
+                return True, filename
     return False, None
 
 
@@ -527,7 +538,7 @@ def install_version_with_dependencies(
     for item in queue:
         file_info = pick_primary_file(item)
         name = file_info["filename"] if file_info else item.get("name", "?")
-        project_id = item.get("project_id") or ""
+        project_id = item.get("project_id") or item.get("projectId") or ""
 
         dest = version_dest_path(
             item, minecraft_dir=minecraft_dir, project_type=project_type

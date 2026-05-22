@@ -12,14 +12,7 @@ from typing import Any
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
-from ui_layout import (
-    BTN_GAP,
-    LIST_PAD,
-    WINDOW_PAD,
-    content_area,
-    footer_bar,
-    tree_with_scrollbar,
-)
+from ui_layout import BTN_GAP, WINDOW_PAD, tree_with_scrollbar
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from modrinth import (
     CONTENT_FOLDERS,
@@ -85,8 +78,8 @@ class ModrinthBrowser(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title("Каталог Modrinth")
-        self.geometry("800x580")
-        self.minsize(720, 540)
+        self.geometry("840x720")
+        self.minsize(760, 660)
 
         self._hits: list[dict] = []
         self._hit_by_iid: dict[str, dict] = {}
@@ -130,24 +123,26 @@ class ModrinthBrowser(tk.Toplevel):
     def _build_ui(self) -> None:
         shell = ttk.Frame(self, padding=WINDOW_PAD)
         shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(2, weight=1)
 
         filters = ttk.Frame(shell)
-        filters.pack(fill="x", pady=(0, 8))
+        filters.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         for c in range(8):
             filters.columnconfigure(c, weight=0)
         filters.columnconfigure(5, weight=1)
 
         ttk.Label(filters, text="Тип", style="Form.TLabel").grid(row=0, column=0, sticky="e")
         self.type_var = tk.StringVar(value="Моды")
-        type_combo = ttk.Combobox(
+        self.type_combo = ttk.Combobox(
             filters,
             textvariable=self.type_var,
-            values=[label for _, label in CONTENT_TYPES],
             width=14,
             state="readonly",
         )
-        type_combo.grid(row=0, column=1, sticky="w", padx=(BTN_GAP, 16))
-        type_combo.bind("<<ComboboxSelected>>", self._on_type_changed)
+        self.type_combo.grid(row=0, column=1, sticky="w", padx=(BTN_GAP, 16))
+        self.type_combo.bind("<<ComboboxSelected>>", self._on_type_changed)
+        self._apply_vanilla_type_filter()
 
         ttk.Label(filters, text="Загрузчик", style="Form.TLabel").grid(
             row=0, column=2, sticky="e"
@@ -184,12 +179,15 @@ class ModrinthBrowser(tk.Toplevel):
         self.more_btn.grid(row=0, column=7)
 
         self.hint_mc_var = tk.StringVar()
-        ttk.Label(shell, textvariable=self.hint_mc_var, style="Hint.TLabel").pack(
-            anchor="w", pady=(0, 6)
+        ttk.Label(shell, textvariable=self.hint_mc_var, style="Hint.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(0, 6)
         )
         self._update_search_hint()
 
-        list_frame = content_area(shell)
+        list_frame = ttk.Frame(shell)
+        list_frame.grid(row=2, column=0, sticky="nsew")
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
         columns = ("downloads", "description")
         try:
             ttk.Style(self).configure("Modrinth.Treeview", rowheight=40)
@@ -201,29 +199,29 @@ class ModrinthBrowser(tk.Toplevel):
         self.tree.heading("#0", text="Название")
         self.tree.heading("downloads", text="Скачивания")
         self.tree.heading("description", text="Описание")
-        self.tree.column("#0", width=240, stretch=True, minwidth=180)
+        self.tree.column("#0", width=260, stretch=True, minwidth=200)
         self.tree.column("downloads", width=96, stretch=False, anchor="center")
         self.tree.column("description", width=320, stretch=True)
         self.tree.tag_configure("installed", background="#2a4030", foreground="#8fd49a")
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
 
         detail = ttk.LabelFrame(shell, text="  Версия для установки  ", padding=(12, 10))
-        detail.pack(fill="x", pady=(8, 0))
+        detail.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         detail.columnconfigure(0, weight=1)
         self.version_combo = ttk.Combobox(detail, state="disabled")
         self.version_combo.grid(row=0, column=0, sticky="ew")
 
-        bottom = footer_bar(shell)
+        bottom = ttk.Frame(shell)
+        bottom.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         bottom.columnconfigure(1, weight=1)
         self.download_btn = ttk.Button(
             bottom,
             text="Скачать",
-            style="Accent.TButton",
+            style="Tool.TButton",
             command=self._download,
             state="disabled",
         )
         self._update_download_button_text()
-        self.download_btn.configure(style="Tool.TButton")
         self.download_btn.grid(row=0, column=0, sticky="w")
         self.hint_label = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.hint_label.grid(row=0, column=1, sticky="w", padx=(14, 14))
@@ -233,15 +231,16 @@ class ModrinthBrowser(tk.Toplevel):
         )
 
         status_row = ttk.Frame(shell)
-        status_row.pack(fill="x", padx=LIST_PAD[0], pady=(6, 0))
+        status_row.grid(row=5, column=0, sticky="ew", pady=(8, 0))
+        status_row.columnconfigure(0, weight=1)
         self.status_var = tk.StringVar(value="Загрузка популярного контента...")
-        ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").pack(
-            anchor="w"
+        ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").grid(
+            row=0, column=0, sticky="w"
         )
         self.progress = ttk.Progressbar(status_row, mode="determinate")
-        self.progress.pack(fill="x", pady=(6, 0))
+        self.progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
-        install_no_autoselect(type_combo, self.type_var)
+        install_no_autoselect(self.type_combo, self.type_var)
         install_no_autoselect(self.loader_filter_combo, self.loader_filter_var)
         install_no_autoselect(query_entry, self.query_var)
         install_no_autoselect(self.version_combo)
@@ -317,7 +316,29 @@ class ModrinthBrowser(tk.Toplevel):
         if self._require_mc_version():
             self._search(reset=True)
 
+    def _vanilla_blocks_mods(self) -> bool:
+        return self.get_loader_id() == "vanilla"
+
+    def _allowed_type_labels(self) -> list[str]:
+        if self._vanilla_blocks_mods():
+            return [
+                label
+                for type_id, label in CONTENT_TYPES
+                if type_id in ("resourcepack", "modpack")
+            ]
+        return [label for _, label in CONTENT_TYPES]
+
+    def _apply_vanilla_type_filter(self) -> None:
+        labels = self._allowed_type_labels()
+        self.type_combo["values"] = labels
+        current = self.type_var.get()
+        if current not in labels:
+            self.type_var.set(labels[0] if labels else "Текстуры")
+
     def _on_type_changed(self, _event: object | None = None) -> None:
+        if self._vanilla_blocks_mods() and self._content_type() in ("mod", "shader"):
+            labels = self._allowed_type_labels()
+            self.type_var.set(labels[0] if labels else "Текстуры")
         self._update_type_hint()
         self._update_download_button_text()
         self._update_loader_filter_state()
@@ -352,9 +373,8 @@ class ModrinthBrowser(tk.Toplevel):
 
     def _format_title(self, hit: dict) -> str:
         title = hit.get("title", "?")
-        if hit.get("_installed"):
-            return f"✓ {title}"
-        return title
+        prefix = "✓ " if hit.get("_installed") else ""
+        return f"\u2003{prefix}{title}"
 
     def _insert_hit(self, hit: dict) -> str:
         desc = (hit.get("description") or "").replace("\n", " ")
@@ -431,6 +451,10 @@ class ModrinthBrowser(tk.Toplevel):
             project_id = hit.get("project_id") or hit.get("slug")
             if not project_id:
                 return iid, hit, False
+            cached = hit.get("_primary_filename")
+            if cached and cached.lower() in installed_files:
+                hit["_installed"] = True
+                return iid, hit, True
             if project_type == "modpack":
                 is_installed = project_is_installed_modpack(
                     self.minecraft_dir, project_id

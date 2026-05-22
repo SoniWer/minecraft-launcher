@@ -9,6 +9,7 @@ launcher.log
 
 # EXE только в GitHub Releases
 MinecraftLauncher.exe
+MinecraftLauncher-v*.exe
 launcher.ico
 
 # Сборка

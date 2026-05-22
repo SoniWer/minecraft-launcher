@@ -11,7 +11,7 @@ from java_download import JavaDownloadError, download_java, installed_java_path
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
 from tooltips import add_tooltip
-from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, WINDOW_PAD, content_area, tree_with_scrollbar
+from ui_layout import BOTTOM_PAD, WINDOW_PAD, tree_with_scrollbar
 from version_manager import InstalledVersion, delete_version, list_installed_versions
 
 
@@ -20,13 +20,18 @@ class VersionManagerWindow(tk.Toplevel):
         super().__init__(parent)
         self.minecraft_dir = minecraft_dir
         self.title("Установленные версии Minecraft")
-        self.geometry("560x400")
-        self.minsize(480, 320)
+        self.geometry("600x480")
+        self.minsize(520, 420)
 
         shell = ttk.Frame(self, padding=WINDOW_PAD)
         shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(0, weight=1)
 
-        list_frame = content_area(shell)
+        list_frame = ttk.Frame(shell)
+        list_frame.grid(row=0, column=0, sticky="nsew")
+        list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
         columns = ("id", "type", "size")
         self.tree, _scroll = tree_with_scrollbar(
             list_frame, columns=columns, show="headings"
@@ -39,7 +44,7 @@ class VersionManagerWindow(tk.Toplevel):
         self.tree.column("size", width=72, stretch=False, anchor="e")
 
         row = ttk.Frame(shell)
-        row.pack(fill="x", padx=TOOLBAR_PAD[0], pady=BOTTOM_PAD)
+        row.grid(row=1, column=0, sticky="ew", pady=(12, 0))
         for text, cmd, tip in (
             ("Обновить", self._reload, "Обновить список версий"),
             ("Удалить", self._delete, "Удалить выбранную версию с диска"),
@@ -132,7 +137,6 @@ class JavaDownloadDialog(tk.Toplevel):
         self.btn = ttk.Button(row, text="Скачать", style="Tool.TButton", command=self._start)
         self.btn.grid(row=0, column=1, sticky="ew")
         add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
-        add_tooltip(cancel_btn, "Закрыть без установки")
         theme_for_child(self, parent)
         install_no_autoselect(msg)
         self.transient(parent)
