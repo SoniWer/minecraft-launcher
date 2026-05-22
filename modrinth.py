@@ -72,12 +72,33 @@ def mc_version_match_values(mc_version: str) -> list[str]:
 
 
 def resolve_loader_param(project_type: str, loader: str | None) -> str | None:
-    """Для модов и modpack — fabric/forge; для текстур и шейдеров — minecraft."""
+    """Загрузчик для API версий: только моды и modpack."""
     if project_type in ("mod", "modpack"):
         return loader
-    if project_type in ("resourcepack", "shader"):
-        return "minecraft"
     return None
+
+
+# Modrinth: у шейдеров нет categories:fabric — фильтр по платформе шейдеров
+SHADER_LOADER_CATEGORIES: dict[str, list[str]] = {
+    "fabric": ["iris", "canvas"],
+    "quilt": ["iris"],
+    "forge": ["optifine"],
+    "neoforge": ["iris"],
+    "vanilla": ["optifine"],
+}
+
+
+def search_loader_facets(project_type: str, loader: str | None) -> list[list[str]]:
+    """Дополнительные facet-группы для /search (внутри группы — OR)."""
+    if not loader:
+        return []
+    if project_type in ("mod", "modpack"):
+        return [[f"categories:{loader}"]]
+    if project_type == "shader":
+        cats = SHADER_LOADER_CATEGORIES.get(loader, ["iris", "optifine"])
+        return [[f"categories:{c}" for c in cats]]
+    # Текстуры совместимы с любым загрузчиком — только фильтр по версии MC
+    return []
 
 
 def version_supports_mc(version: dict[str, Any], mc_version: str) -> bool:
@@ -228,11 +249,8 @@ def search_projects(
         [f"project_type:{project_type}"],
         version_facets,
     ]
-    mod_loader = resolve_loader_param(project_type, loader)
-    if loader and project_type in ("mod", "modpack"):
-        facets.append([f"categories:{loader}"])
-    elif loader and project_type in ("shader", "resourcepack"):
-        facets.append([f"categories:{loader}"])
+    for group in search_loader_facets(project_type, loader):
+        facets.append(group)
 
     params = {
         "query": query,

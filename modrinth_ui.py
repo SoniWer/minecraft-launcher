@@ -17,6 +17,7 @@ from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from modrinth import (
     CONTENT_FOLDERS,
     LOADER_IDS,
+    SHADER_LOADER_CATEGORIES,
     InstallResult,
     ModpackInstallResult,
     ModrinthError,
@@ -278,7 +279,13 @@ class ModrinthBrowser(tk.Toplevel):
         loader = self._api_loader()
         filter_label = self.loader_filter_var.get()
         if loader:
-            hint += f" · загрузчик: {loader} ({filter_label})"
+            if project_type == "shader":
+                cats = SHADER_LOADER_CATEGORIES.get(loader, ["iris", "optifine"])
+                hint += f" · шейдеры: {', '.join(cats)} ({filter_label})"
+            elif project_type == "resourcepack":
+                hint += f" · текстуры для {mc_version} ({filter_label})"
+            else:
+                hint += f" · загрузчик: {loader} ({filter_label})"
         elif filter_label != "Любой":
             hint += f" · фильтр: {filter_label}"
         if self._is_alive():
