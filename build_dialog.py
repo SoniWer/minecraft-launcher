@@ -7,6 +7,7 @@ from collections.abc import Callable
 from tkinter import messagebox, ttk
 
 from theme import theme_for_child
+from ui_focus import install_no_autoselect
 from ui_layout import DIALOG_PAD, form_field, form_label, setup_form_grid
 
 LOADER_CHOICES = [
@@ -82,6 +83,10 @@ class NewBuildDialog(tk.Toplevel):
         ttk.Button(row, text="Создать", style="Accent.TButton", command=self._submit).pack(
             side="right"
         )
+
+        install_no_autoselect(name_entry, self.name_var)
+        install_no_autoselect(mc_combo, self.mc_var)
+        install_no_autoselect(loader_combo, self.loader_var)
 
         theme_for_child(self, parent)
         self.bind("<Return>", lambda _e: self._submit())

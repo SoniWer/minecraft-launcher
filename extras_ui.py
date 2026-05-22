@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from java_download import JavaDownloadError, download_java, installed_java_path
 from theme import theme_for_child
+from ui_focus import install_no_autoselect
 from tooltips import add_tooltip
 from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, WINDOW_PAD, content_area, tree_with_scrollbar
 from version_manager import InstalledVersion, delete_version, list_installed_versions
@@ -110,25 +111,30 @@ class JavaDownloadDialog(tk.Toplevel):
         self.major = required_java_major(mc_version)
 
         self.title("Скачать Java")
-        self.geometry("440x180")
+        self.geometry("460x170")
+        self.resizable(False, False)
         body = ttk.Frame(self, padding=WINDOW_PAD)
         body.pack(fill="both", expand=True)
-        ttk.Label(
+        msg = ttk.Label(
             body,
             text=f"Скачать Eclipse Temurin Java {self.major} для Minecraft {mc_version}?",
-            wraplength=380,
-        ).pack(anchor="w", pady=(0, 10))
+            wraplength=400,
+        )
+        msg.pack(anchor="w", pady=(0, 10))
         self.status_var = tk.StringVar(value="")
         ttk.Label(body, textvariable=self.status_var, style="Status.TLabel").pack(anchor="w")
         row = ttk.Frame(body)
-        row.pack(fill="x", pady=(16, 0))
-        self.btn = ttk.Button(row, text="Скачать", style="Accent.TButton", command=self._start)
-        self.btn.pack(side="right", padx=(8, 0))
-        add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
+        row.pack(fill="x", pady=(14, 0))
+        row.columnconfigure(0, weight=1, uniform="dlgbtn")
+        row.columnconfigure(1, weight=1, uniform="dlgbtn")
         cancel_btn = ttk.Button(row, text="Отмена", style="Tool.TButton", command=self.destroy)
-        cancel_btn.pack(side="right")
+        cancel_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+        self.btn = ttk.Button(row, text="Скачать", style="Tool.TButton", command=self._start)
+        self.btn.grid(row=0, column=1, sticky="ew")
+        add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
         add_tooltip(cancel_btn, "Закрыть без установки")
         theme_for_child(self, parent)
+        install_no_autoselect(msg)
         self.transient(parent)
         self.grab_set()
 

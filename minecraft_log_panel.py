@@ -10,6 +10,8 @@ from tkinter import messagebox, scrolledtext, ttk
 from game_logs import read_log_incremental, resolve_log_file
 from theme import style_text_widget
 
+LOG_LINES = 4
+
 
 class MinecraftLogPanel(ttk.LabelFrame):
     def __init__(
@@ -34,7 +36,7 @@ class MinecraftLogPanel(ttk.LabelFrame):
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 4))
 
-        self.status_var = tk.StringVar(value="Запустите игру")
+        self.status_var = tk.StringVar(value="Запустите игру — лог появится после старта")
         ttk.Label(toolbar, textvariable=self.status_var, style="Hint.TLabel").pack(
             side="left"
         )
@@ -47,10 +49,11 @@ class MinecraftLogPanel(ttk.LabelFrame):
         ).pack(side="right", padx=(8, 0))
 
         self.text = scrolledtext.ScrolledText(
-            self, wrap="word", height=6, font=("Consolas", 9), state="disabled"
+            self, wrap="word", height=LOG_LINES, font=("Consolas", 9), state="disabled"
         )
-        self.text.pack(fill="both", expand=True)
+        self.text.pack(fill="x", expand=False)
         style_text_widget(self.text, colors)
+        self._clear_view()
         self.text.bind("<Button-1>", self._on_user_scroll)
         self.text.bind("<MouseWheel>", self._on_user_scroll)
         self.text.bind("<Key>", self._on_user_scroll)
@@ -59,6 +62,13 @@ class MinecraftLogPanel(ttk.LabelFrame):
 
     def set_fast_poll(self, enabled: bool) -> None:
         self._fast_poll = enabled
+        self._log_path = None
+        self._log_pos = 0
+        self._clear_view()
+        if enabled:
+            self._set_status("Ожидание записей в лог…")
+        else:
+            self._set_status("Запустите игру — лог появится после старта")
 
     def reset_source(self) -> None:
         self._log_path = None
@@ -120,6 +130,11 @@ class MinecraftLogPanel(ttk.LabelFrame):
             self._poll_job = self.after(800, self._poll)
             return
 
+        if not self._fast_poll:
+            self._set_status("Запустите игру — лог появится после старта")
+            self._poll_job = self.after(900, self._poll)
+            return
+
         game_dir, shared_dir = self.get_log_dirs()
         path, hint = resolve_log_file(game_dir, shared_dir)
 
@@ -127,7 +142,10 @@ class MinecraftLogPanel(ttk.LabelFrame):
             self._log_path = path
             self._log_pos = 0
             if path is not None:
-                self._clear_view()
+                try:
+                    self._log_pos = path.stat().st_size
+                except OSError:
+                    self._log_pos = 0
 
         if not path:
             self._set_status(hint)

@@ -218,8 +218,10 @@ def search_projects(
         version_facets,
     ]
     mod_loader = resolve_loader_param(project_type, loader)
-    if mod_loader and project_type in ("mod", "modpack"):
-        facets.append([f"categories:{mod_loader}"])
+    if loader and project_type in ("mod", "modpack"):
+        facets.append([f"categories:{loader}"])
+    elif loader and project_type in ("shader", "resourcepack"):
+        facets.append([f"categories:{loader}"])
 
     params = {
         "query": query,

@@ -73,7 +73,7 @@ def icon_photo_from_rgba(img: Any, master: "tk.Misc") -> "tk.PhotoImage | None":
 def load_icons_batch(
     items: list[tuple[str, str | None]],
     *,
-    size: int = 32,
+    size: int = 28,
     on_done: Callable[[list[tuple[str, Any]]], None],
 ) -> None:
     """Загрузить иконки в фоне; on_done вызывается из фонового потока — планируйте UI сами."""

@@ -60,6 +60,7 @@ from ram_advisor import ram_hint_text, recommend_ram_gb
 from app_paths import launcher_dir
 from settings import LauncherSettings
 from theme import apply_theme, style_canvas, style_text_widget
+from ui_focus import install_no_autoselect
 from ui_layout import (
     BTN_GAP,
     CARD_PAD,
@@ -145,7 +146,7 @@ class MinecraftLauncherApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(f"Minecraft Launcher v{LAUNCHER_VERSION}")
-        self.root.minsize(860, 500)
+        self.root.minsize(900, 540)
 
         self.shared_dir = minecraft_launcher_lib.utils.get_minecraft_directory()
         self.versions: list[dict] = []
@@ -164,7 +165,7 @@ class MinecraftLauncherApp:
                 f"{self.settings.window_width}x{self.settings.window_height}"
             )
         else:
-            self.root.geometry("920x540")
+            self.root.geometry("960x580")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
@@ -196,9 +197,9 @@ class MinecraftLauncherApp:
         shell = ttk.Frame(self.root, padding=SHELL_PAD)
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
-        shell.rowconfigure(0, weight=1)
+        shell.rowconfigure(0, weight=1, minsize=420)
         shell.rowconfigure(1, weight=0)
-        shell.rowconfigure(2, weight=0)
+        shell.rowconfigure(2, weight=0, minsize=0)
 
         scroll_host = ttk.Frame(shell)
         scroll_host.grid(row=0, column=0, sticky="nsew")
@@ -432,6 +433,19 @@ class MinecraftLauncherApp:
         else:
             self.log_panel.grid_remove()
 
+        for combo, var in (
+            (self.build_combo, self.build_var),
+            (self.username_entry, self.username_var),
+            (self.version_combo, None),
+            (self.loader_combo, self.loader_var),
+            (self.loader_version_combo, None),
+            (self.filter_combo, self.filter_display_var),
+            (self.java_combo, self.java_var),
+            (self.ram_combo, self.ram_var),
+            (self.jvm_preset_combo, self.jvm_preset_var),
+        ):
+            install_no_autoselect(combo, var)
+
         self._register_tooltips()
 
     def _setup_drag_drop(self) -> None:
@@ -564,7 +578,10 @@ class MinecraftLauncherApp:
         self.settings.show_game_log = show
         self.settings.save(LAUNCHER_DIR)
         if show:
-            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(2, 0))
+            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+            h = max(self.root.winfo_height(), 580)
+            if self.root.winfo_height() < h:
+                self.root.geometry(f"{self.root.winfo_width()}x{h}")
         else:
             self.log_panel.grid_remove()
 

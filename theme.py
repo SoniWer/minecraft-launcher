@@ -195,7 +195,8 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
     style.configure("Tool.TButton", padding=pad_tool)
     style.configure("Danger.TButton", padding=pad_tool)
     style.configure("Stop.TButton", font=FONTS["play"], padding=pad_btn)
-    style.configure("Treeview", rowheight=26, font=FONTS["body"])
+    style.configure("Treeview", rowheight=28, font=FONTS["body"])
+    style.configure("Modrinth.Treeview", rowheight=40, font=FONTS["body"])
     style.configure("Horizontal.TSeparator", background=colors.border)
     style.configure("Vertical.TSeparator", background=colors.border)
 

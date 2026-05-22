@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from theme import theme_for_child
+from ui_focus import install_no_autoselect
 from ui_layout import (
     BTN_GAP,
     LIST_PAD,
@@ -84,8 +85,8 @@ class ModrinthBrowser(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title("Каталог Modrinth")
-        self.geometry("780x560")
-        self.minsize(700, 520)
+        self.geometry("800x580")
+        self.minsize(720, 540)
 
         self._hits: list[dict] = []
         self._hit_by_iid: dict[str, dict] = {}
@@ -190,8 +191,12 @@ class ModrinthBrowser(tk.Toplevel):
 
         list_frame = content_area(shell)
         columns = ("downloads", "description")
+        try:
+            ttk.Style(self).configure("Modrinth.Treeview", rowheight=40)
+        except tk.TclError:
+            pass
         self.tree, _scroll = tree_with_scrollbar(
-            list_frame, columns=columns, show="tree headings"
+            list_frame, columns=columns, show="tree headings", style="Modrinth.Treeview"
         )
         self.tree.heading("#0", text="Название")
         self.tree.heading("downloads", text="Скачивания")
@@ -218,6 +223,7 @@ class ModrinthBrowser(tk.Toplevel):
             state="disabled",
         )
         self._update_download_button_text()
+        self.download_btn.configure(style="Tool.TButton")
         self.download_btn.grid(row=0, column=0, sticky="w")
         self.hint_label = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.hint_label.grid(row=0, column=1, sticky="w", padx=(14, 14))
@@ -235,6 +241,11 @@ class ModrinthBrowser(tk.Toplevel):
         self.progress = ttk.Progressbar(status_row, mode="determinate")
         self.progress.pack(fill="x", pady=(6, 0))
 
+        install_no_autoselect(type_combo, self.type_var)
+        install_no_autoselect(self.loader_filter_combo, self.loader_filter_var)
+        install_no_autoselect(query_entry, self.query_var)
+        install_no_autoselect(self.version_combo)
+
     def _content_type(self) -> str:
         label = self.type_var.get()
         for type_id, display in CONTENT_TYPES:
@@ -249,10 +260,6 @@ class ModrinthBrowser(tk.Toplevel):
         return LOADER_IDS.get(loader_id)
 
     def _api_loader(self) -> str | None:
-        project_type = self._content_type()
-        if project_type not in ("mod", "modpack"):
-            return None
-
         choice = LOADER_FILTER_BY_LABEL.get(
             self.loader_filter_var.get(), "launcher"
         )
@@ -263,22 +270,18 @@ class ModrinthBrowser(tk.Toplevel):
         return LOADER_IDS.get(choice, choice)
 
     def _update_loader_filter_state(self) -> None:
-        if self._content_type() in ("mod", "modpack"):
-            self.loader_filter_combo.configure(state="readonly")
-        else:
-            self.loader_filter_combo.configure(state="disabled")
+        self.loader_filter_combo.configure(state="readonly")
 
     def _update_search_hint(self) -> None:
         mc_version = self.get_mc_version() or "?"
         hint = f"Версия MC: {mc_version} · ✓ = уже установлено"
         project_type = self._content_type()
-        if project_type in ("mod", "modpack"):
-            loader = self._api_loader()
-            filter_label = self.loader_filter_var.get()
-            if loader:
-                hint += f" · фильтр: {loader} ({filter_label})"
-            else:
-                hint += f" · фильтр загрузчика: {filter_label}"
+        loader = self._api_loader()
+        filter_label = self.loader_filter_var.get()
+        if loader:
+            hint += f" · загрузчик: {loader} ({filter_label})"
+        elif filter_label != "Любой":
+            hint += f" · фильтр: {filter_label}"
         if self._is_alive():
             self.hint_mc_var.set(hint)
 
