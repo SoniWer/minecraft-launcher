@@ -9,6 +9,7 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from tooltips import add_tooltip
+from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, content_area, tree_with_scrollbar
 
 
 @dataclass(frozen=True)
@@ -40,8 +41,8 @@ class PackListWindow(tk.Toplevel):
         self.modrinth_window_factory = modrinth_window_factory
 
         self.title(f"{kind.title} — {game_dir.name}")
-        self.geometry("640x380")
-        self.minsize(520, 300)
+        self.geometry("680x400")
+        self.minsize(560, 320)
 
         self._entries: list[dict] = []
         self._build_ui()
@@ -52,7 +53,7 @@ class PackListWindow(tk.Toplevel):
 
     def _build_ui(self) -> None:
         toolbar = ttk.Frame(self)
-        toolbar.pack(fill="x", padx=10, pady=8)
+        toolbar.pack(fill="x", padx=TOOLBAR_PAD[0], pady=TOOLBAR_PAD)
         for text, cmd, tip in (
             ("Обновить", self._reload_list, "Перечитать папку"),
             ("Включить", self._enable_selected, "Снять .disabled"),
@@ -60,37 +61,36 @@ class PackListWindow(tk.Toplevel):
             ("Удалить", self._delete_selected, "Удалить файл"),
             ("Открыть папку", self._open_folder, f"Папка {self.kind.folder}"),
         ):
-            btn = ttk.Button(toolbar, text=text, command=cmd)
-            btn.pack(side="left", padx=(0, 6))
+            btn = ttk.Button(toolbar, text=text, style="Tool.TButton", command=cmd)
+            btn.pack(side="left", padx=(0, 8))
             add_tooltip(btn, tip)
 
         if self.kind.key == "mods" and self.modrinth_window_factory:
             ttk.Button(
                 toolbar,
                 text="Modrinth",
+                style="Tool.TButton",
                 command=self.modrinth_window_factory,
             ).pack(side="right")
 
-        list_frame = ttk.Frame(self)
-        list_frame.pack(fill="both", expand=True, padx=10, pady=4)
-
-        self.tree = ttk.Treeview(
-            list_frame, columns=("name", "status"), show="headings", selectmode="browse"
+        list_frame = content_area(self)
+        self.tree, _scroll = tree_with_scrollbar(
+            list_frame, columns=("name", "status"), show="headings"
         )
         self.tree.heading("name", text="Файл")
         self.tree.heading("status", text="Статус")
-        self.tree.column("name", width=420)
-        self.tree.column("status", width=80, stretch=False)
-        scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
+        self.tree.column("name", width=440, stretch=True)
+        self.tree.column("status", width=88, stretch=False, anchor="center")
 
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.status_var, wraplength=600).pack(
-            anchor="w", padx=10, pady=6
+        ttk.Label(self, textvariable=self.status_var, style="Status.TLabel", wraplength=620).pack(
+            anchor="w", padx=BOTTOM_PAD[0], pady=(4, 0)
         )
-        ttk.Button(self, text="Закрыть", command=self.destroy).pack(pady=6)
+        footer = ttk.Frame(self)
+        footer.pack(fill="x", padx=BOTTOM_PAD[0], pady=BOTTOM_PAD)
+        ttk.Button(footer, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
+            side="right"
+        )
 
     def _selected_entry(self) -> dict | None:
         sel = self.tree.selection()

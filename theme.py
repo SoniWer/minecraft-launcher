@@ -17,25 +17,27 @@ class ThemeColors:
     accent_fg: str
     card: str
     entry: str
+    border: str
     success: str
     danger: str
 
 
 DARK = ThemeColors(
-    bg="#1a1a1e",
-    fg="#ececec",
-    muted="#8a8f98",
+    bg="#16161a",
+    fg="#ececef",
+    muted="#8b919c",
     accent="#3d9a4a",
     accent_hover="#4db35c",
     accent_fg="#ffffff",
-    card="#25252b",
-    entry="#2f2f36",
+    card="#222228",
+    entry="#2c2c34",
+    border="#3a3a44",
     success="#5ecf6a",
     danger="#e06060",
 )
 
 LIGHT = ThemeColors(
-    bg="#f0f2f5",
+    bg="#eef0f4",
     fg="#1a1a1e",
     muted="#5c6370",
     accent="#2d7a38",
@@ -43,18 +45,20 @@ LIGHT = ThemeColors(
     accent_fg="#ffffff",
     card="#ffffff",
     entry="#ffffff",
+    border="#d0d4dc",
     success="#2d7a38",
     danger="#c0392b",
 )
 
 FONTS = {
-    "title": ("Segoe UI", 20, "bold"),
-    "subtitle": ("Segoe UI", 9),
+    "title": ("Segoe UI", 22, "bold"),
+    "subtitle": ("Segoe UI", 10),
     "section": ("Segoe UI", 9, "bold"),
     "body": ("Segoe UI", 10),
+    "form": ("Segoe UI", 10),
     "hint": ("Segoe UI", 8),
     "mono": ("Consolas", 9),
-    "play": ("Segoe UI", 12, "bold"),
+    "play": ("Segoe UI", 13, "bold"),
 }
 
 
@@ -80,6 +84,10 @@ def theme_for_child(window: tk.Toplevel, parent: tk.Misc) -> ThemeColors:
     """Согласовать дочернее окно с темой родителя."""
     dark = getattr(parent, "_launcher_dark", True)
     return apply_theme(window, dark=dark)
+
+
+def style_canvas(canvas: tk.Canvas, colors: ThemeColors) -> None:
+    canvas.configure(bg=colors.bg, highlightthickness=0, borderwidth=0)
 
 
 def _apply_sv_or_clam(root: tk.Misc, colors: ThemeColors, *, dark: bool) -> None:
@@ -115,6 +123,8 @@ def _apply_clam_dark(root: tk.Misc, colors: ThemeColors) -> None:
         "Treeview",
         "TProgressbar",
         "TFrame",
+        "TNotebook",
+        "TSeparator",
     ):
         style.configure(name, background=bg, foreground=fg)
     style.configure("TLabelframe.Label", background=bg, foreground=fg)
@@ -126,10 +136,12 @@ def _apply_clam_dark(root: tk.Misc, colors: ThemeColors) -> None:
 
 def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
     style = ttk.Style(root)
-    pad_btn = (14, 8)
-    pad_tool = (10, 4)
+    pad_btn = (18, 10)
+    pad_tool = (12, 6)
 
     style.configure("TFrame", background=colors.bg)
+    style.configure("TNotebook", background=colors.bg, borderwidth=0, tabmargins=(2, 4, 2, 0))
+    style.configure("TNotebook.Tab", padding=(14, 6), font=FONTS["body"])
     style.configure(
         "Card.TLabelframe",
         background=colors.bg,
@@ -156,6 +168,12 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
         font=FONTS["subtitle"],
     )
     style.configure(
+        "Form.TLabel",
+        background=colors.bg,
+        foreground=colors.muted,
+        font=FONTS["form"],
+    )
+    style.configure(
         "Hint.TLabel",
         background=colors.bg,
         foreground=colors.muted,
@@ -173,18 +191,13 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
         foreground=colors.success,
         font=FONTS["body"],
     )
-    style.configure(
-        "Accent.TButton",
-        font=FONTS["play"],
-        padding=pad_btn,
-    )
+    style.configure("Accent.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Tool.TButton", padding=pad_tool)
     style.configure("Danger.TButton", padding=pad_tool)
-    style.configure(
-        "Stop.TButton",
-        font=FONTS["play"],
-        padding=pad_btn,
-    )
+    style.configure("Stop.TButton", font=FONTS["play"], padding=pad_btn)
+    style.configure("Treeview", rowheight=26, font=FONTS["body"])
+    style.configure("Horizontal.TSeparator", background=colors.border)
+    style.configure("Vertical.TSeparator", background=colors.border)
 
     if not _using_sv_ttk():
         style.configure(

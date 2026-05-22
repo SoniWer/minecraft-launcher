@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from java_download import JavaDownloadError, download_java, installed_java_path
 from theme import theme_for_child
 from tooltips import add_tooltip
+from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, WINDOW_PAD, content_area, tree_with_scrollbar
 from version_manager import InstalledVersion, delete_version, list_installed_versions
 
 
@@ -18,28 +19,34 @@ class VersionManagerWindow(tk.Toplevel):
         super().__init__(parent)
         self.minecraft_dir = minecraft_dir
         self.title("Установленные версии Minecraft")
-        self.geometry("520x360")
+        self.geometry("560x400")
+        self.minsize(480, 320)
 
+        shell = ttk.Frame(self, padding=WINDOW_PAD)
+        shell.pack(fill="both", expand=True)
+
+        list_frame = content_area(shell)
         columns = ("id", "type", "size")
-        self.tree = ttk.Treeview(self, columns=columns, show="headings", selectmode="browse")
+        self.tree, _scroll = tree_with_scrollbar(
+            list_frame, columns=columns, show="headings"
+        )
         self.tree.heading("id", text="Версия")
         self.tree.heading("type", text="Тип")
         self.tree.heading("size", text="МБ")
-        self.tree.column("id", width=220)
-        self.tree.column("type", width=80)
-        self.tree.column("size", width=60)
-        self.tree.pack(fill="both", expand=True, padx=10, pady=10)
+        self.tree.column("id", width=240, stretch=True)
+        self.tree.column("type", width=88, stretch=False, anchor="center")
+        self.tree.column("size", width=72, stretch=False, anchor="e")
 
-        row = ttk.Frame(self)
-        row.pack(fill="x", padx=10, pady=6)
+        row = ttk.Frame(shell)
+        row.pack(fill="x", padx=TOOLBAR_PAD[0], pady=BOTTOM_PAD)
         for text, cmd, tip in (
             ("Обновить", self._reload, "Обновить список версий"),
             ("Удалить", self._delete, "Удалить выбранную версию с диска"),
         ):
-            btn = ttk.Button(row, text=text, command=cmd)
-            btn.pack(side="left", padx=4)
+            btn = ttk.Button(row, text=text, style="Tool.TButton", command=cmd)
+            btn.pack(side="left", padx=(0, 8))
             add_tooltip(btn, tip)
-        close_btn = ttk.Button(row, text="Закрыть", command=self.destroy)
+        close_btn = ttk.Button(row, text="Закрыть", style="Tool.TButton", command=self.destroy)
         close_btn.pack(side="right")
         add_tooltip(close_btn, "Закрыть окно")
 
@@ -103,21 +110,23 @@ class JavaDownloadDialog(tk.Toplevel):
         self.major = required_java_major(mc_version)
 
         self.title("Скачать Java")
-        self.geometry("400x160")
+        self.geometry("440x180")
+        body = ttk.Frame(self, padding=WINDOW_PAD)
+        body.pack(fill="both", expand=True)
         ttk.Label(
-            self,
+            body,
             text=f"Скачать Eclipse Temurin Java {self.major} для Minecraft {mc_version}?",
-            wraplength=360,
-        ).pack(padx=12, pady=12)
+            wraplength=380,
+        ).pack(anchor="w", pady=(0, 10))
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.status_var).pack(padx=12)
-        row = ttk.Frame(self)
-        row.pack(pady=10)
-        self.btn = ttk.Button(row, text="Скачать", command=self._start)
-        self.btn.pack(side="left", padx=6)
+        ttk.Label(body, textvariable=self.status_var, style="Status.TLabel").pack(anchor="w")
+        row = ttk.Frame(body)
+        row.pack(fill="x", pady=(16, 0))
+        self.btn = ttk.Button(row, text="Скачать", style="Accent.TButton", command=self._start)
+        self.btn.pack(side="right", padx=(8, 0))
         add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
-        cancel_btn = ttk.Button(row, text="Отмена", command=self.destroy)
-        cancel_btn.pack(side="left")
+        cancel_btn = ttk.Button(row, text="Отмена", style="Tool.TButton", command=self.destroy)
+        cancel_btn.pack(side="right")
         add_tooltip(cancel_btn, "Закрыть без установки")
         theme_for_child(self, parent)
         self.transient(parent)

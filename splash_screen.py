@@ -19,7 +19,7 @@ def show_splash(parent: tk.Tk, on_done: Callable[[], None], *, duration_ms: int 
     splash.configure(bg=bg)
     splash.attributes("-topmost", True)
 
-    w, h = 320, 200
+    w, h = 340, 210
     splash.update_idletasks()
     sw = splash.winfo_screenwidth()
     sh = splash.winfo_screenheight()
@@ -38,15 +38,16 @@ def show_splash(parent: tk.Tk, on_done: Callable[[], None], *, duration_ms: int 
         w // 2, 130, text="Minecraft Launcher", fill=fg, font=("Segoe UI", 14, "bold")
     )
     canvas.create_text(w // 2, 152, text="Загрузка…", fill=accent, font=("Segoe UI", 9))
-    bar_bg = canvas.create_rectangle(40, 168, w - 40, 178, fill="#2f2f36", outline="")
-    bar_fg = canvas.create_rectangle(40, 168, 40, 178, fill=accent, outline="")
+    bar_fill = colors.entry if colors else "#2c2c34"
+    bar_bg = canvas.create_rectangle(48, 172, w - 48, 182, fill=bar_fill, outline="")
+    bar_fg = canvas.create_rectangle(48, 172, 48, 182, fill=accent, outline="")
 
     step = {"i": 0}
 
     def animate_bar() -> None:
-        step["i"] = (step["i"] + 4) % (w - 80)
-        x1 = 40 + step["i"]
-        canvas.coords(bar_fg, 40, 168, min(x1 + 60, w - 40), 178)
+        step["i"] = (step["i"] + 4) % (w - 96)
+        x1 = 48 + step["i"]
+        canvas.coords(bar_fg, 48, 172, min(x1 + 60, w - 48), 182)
         if splash.winfo_exists():
             splash.after(40, animate_bar)
 

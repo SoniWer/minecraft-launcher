@@ -19,7 +19,9 @@ class MinecraftLogPanel(ttk.LabelFrame):
         get_log_dirs: Callable[[], tuple[Path, Path]],
         colors,
     ) -> None:
-        super().__init__(parent, text="Лог Minecraft", padding=(4, 4))
+        super().__init__(
+            parent, text="  Лог Minecraft  ", style="Card.TLabelframe", padding=(12, 10)
+        )
         self.get_log_dirs = get_log_dirs
         self._colors = colors
         self._log_path: Path | None = None
@@ -37,15 +39,15 @@ class MinecraftLogPanel(ttk.LabelFrame):
             side="left"
         )
 
-        ttk.Button(toolbar, text="Копировать", command=self._copy_log).pack(
-            side="right", padx=(4, 0)
-        )
-        ttk.Button(toolbar, text="Очистить", command=self._clear_view).pack(
-            side="right", padx=(4, 0)
-        )
+        ttk.Button(
+            toolbar, text="Копировать", style="Tool.TButton", command=self._copy_log
+        ).pack(side="right", padx=(8, 0))
+        ttk.Button(
+            toolbar, text="Очистить", style="Tool.TButton", command=self._clear_view
+        ).pack(side="right", padx=(8, 0))
 
         self.text = scrolledtext.ScrolledText(
-            self, wrap="word", height=5, font=("Consolas", 9), state="disabled"
+            self, wrap="word", height=6, font=("Consolas", 9), state="disabled"
         )
         self.text.pack(fill="both", expand=True)
         style_text_widget(self.text, colors)

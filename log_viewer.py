@@ -8,6 +8,7 @@ from tkinter import scrolledtext, ttk
 
 from game_logs import latest_log
 from theme import style_text_widget, theme_for_child
+from ui_layout import TOOLBAR_PAD, WINDOW_PAD
 
 
 class LogViewerWindow(tk.Toplevel):
@@ -20,17 +21,26 @@ class LogViewerWindow(tk.Toplevel):
         self.geometry("720x480")
         self.minsize(500, 300)
 
-        toolbar = ttk.Frame(self)
-        toolbar.pack(fill="x", padx=8, pady=6)
-        ttk.Button(toolbar, text="Обновить", command=self._reload).pack(side="left", padx=4)
-        self.auto_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(toolbar, text="Авто", variable=self.auto_var).pack(side="left", padx=8)
-        self.status_var = tk.StringVar()
-        ttk.Label(toolbar, textvariable=self.status_var).pack(side="left", padx=8)
-        ttk.Button(toolbar, text="Закрыть", command=self.destroy).pack(side="right")
+        shell = ttk.Frame(self, padding=WINDOW_PAD)
+        shell.pack(fill="both", expand=True)
 
-        self.text = scrolledtext.ScrolledText(self, wrap="none", font=("Consolas", 9))
-        self.text.pack(fill="both", expand=True, padx=8, pady=4)
+        toolbar = ttk.Frame(shell)
+        toolbar.pack(fill="x", pady=TOOLBAR_PAD)
+        ttk.Button(toolbar, text="Обновить", style="Tool.TButton", command=self._reload).pack(
+            side="left", padx=(0, 8)
+        )
+        self.auto_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(toolbar, text="Авто", variable=self.auto_var).pack(side="left", padx=(0, 12))
+        self.status_var = tk.StringVar()
+        ttk.Label(toolbar, textvariable=self.status_var, style="Hint.TLabel").pack(
+            side="left", fill="x", expand=True
+        )
+        ttk.Button(toolbar, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
+            side="right"
+        )
+
+        self.text = scrolledtext.ScrolledText(shell, wrap="none", font=("Consolas", 9))
+        self.text.pack(fill="both", expand=True)
 
         colors = theme_for_child(self, parent)
         style_text_widget(self.text, colors)

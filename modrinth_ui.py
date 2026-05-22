@@ -11,6 +11,14 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from theme import theme_for_child
+from ui_layout import (
+    BTN_GAP,
+    LIST_PAD,
+    WINDOW_PAD,
+    content_area,
+    footer_bar,
+    tree_with_scrollbar,
+)
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from modrinth import (
     CONTENT_FOLDERS,
@@ -76,8 +84,8 @@ class ModrinthBrowser(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title("Каталог Modrinth")
-        self.geometry("740x540")
-        self.minsize(660, 500)
+        self.geometry("780x560")
+        self.minsize(700, 520)
 
         self._hits: list[dict] = []
         self._hit_by_iid: dict[str, dict] = {}
@@ -119,104 +127,113 @@ class ModrinthBrowser(tk.Toplevel):
         self.destroy()
 
     def _build_ui(self) -> None:
-        pad = {"padx": 10, "pady": 5}
+        shell = ttk.Frame(self, padding=WINDOW_PAD)
+        shell.pack(fill="both", expand=True)
 
-        top = ttk.Frame(self)
-        top.pack(fill="x", **pad)
+        filters = ttk.Frame(shell)
+        filters.pack(fill="x", pady=(0, 8))
+        for c in range(8):
+            filters.columnconfigure(c, weight=0)
+        filters.columnconfigure(5, weight=1)
 
-        ttk.Label(top, text="Тип:").pack(side="left")
+        ttk.Label(filters, text="Тип", style="Form.TLabel").grid(row=0, column=0, sticky="e")
         self.type_var = tk.StringVar(value="Моды")
         type_combo = ttk.Combobox(
-            top,
+            filters,
             textvariable=self.type_var,
             values=[label for _, label in CONTENT_TYPES],
-            width=12,
+            width=14,
             state="readonly",
         )
-        type_combo.pack(side="left", padx=(4, 12))
+        type_combo.grid(row=0, column=1, sticky="w", padx=(BTN_GAP, 16))
         type_combo.bind("<<ComboboxSelected>>", self._on_type_changed)
 
-        ttk.Label(top, text="Загрузчик:").pack(side="left", padx=(8, 0))
+        ttk.Label(filters, text="Загрузчик", style="Form.TLabel").grid(
+            row=0, column=2, sticky="e"
+        )
         self.loader_filter_var = tk.StringVar(value="Как в лаунчере")
         self.loader_filter_combo = ttk.Combobox(
-            top,
+            filters,
             textvariable=self.loader_filter_var,
             values=LOADER_FILTER_LABELS,
-            width=16,
+            width=18,
             state="readonly",
         )
-        self.loader_filter_combo.pack(side="left", padx=4)
+        self.loader_filter_combo.grid(row=0, column=3, sticky="w", padx=(BTN_GAP, 16))
         self.loader_filter_combo.bind(
             "<<ComboboxSelected>>", lambda _e: self._search(reset=True)
         )
 
-        ttk.Label(top, text="Поиск:").pack(side="left", padx=(8, 0))
+        ttk.Label(filters, text="Поиск", style="Form.TLabel").grid(row=0, column=4, sticky="e")
         self.query_var = tk.StringVar()
-        query_entry = ttk.Entry(top, textvariable=self.query_var, width=32)
-        query_entry.pack(side="left", padx=4)
+        query_entry = ttk.Entry(filters, textvariable=self.query_var)
+        query_entry.grid(row=0, column=5, sticky="ew", padx=(BTN_GAP, BTN_GAP))
         query_entry.bind("<Return>", lambda _e: self._search(reset=True))
 
-        ttk.Button(top, text="Найти", command=lambda: self._search(reset=True)).pack(
-            side="left", padx=4
-        )
+        ttk.Button(
+            filters, text="Найти", style="Tool.TButton", command=lambda: self._search(reset=True)
+        ).grid(row=0, column=6, padx=(0, BTN_GAP))
         self.more_btn = ttk.Button(
-            top, text="Ещё", command=lambda: self._search(reset=False), state="disabled"
+            filters,
+            text="Ещё",
+            style="Tool.TButton",
+            command=lambda: self._search(reset=False),
+            state="disabled",
         )
-        self.more_btn.pack(side="left")
+        self.more_btn.grid(row=0, column=7)
 
         self.hint_mc_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.hint_mc_var, foreground="gray").pack(
-            anchor="w", padx=10
+        ttk.Label(shell, textvariable=self.hint_mc_var, style="Hint.TLabel").pack(
+            anchor="w", pady=(0, 6)
         )
         self._update_search_hint()
 
-        list_frame = ttk.Frame(self)
-        list_frame.pack(fill="both", expand=True, padx=10, pady=4)
-
+        list_frame = content_area(shell)
         columns = ("downloads", "description")
-        self.tree = ttk.Treeview(
-            list_frame, columns=columns, show="tree headings", selectmode="browse"
+        self.tree, _scroll = tree_with_scrollbar(
+            list_frame, columns=columns, show="tree headings"
         )
         self.tree.heading("#0", text="Название")
         self.tree.heading("downloads", text="Скачивания")
         self.tree.heading("description", text="Описание")
-        self.tree.column("#0", width=260, stretch=False)
-        self.tree.column("downloads", width=90, stretch=False, anchor="center")
-        self.tree.column("description", width=340)
-        self.tree.tag_configure("installed", background="#c8e6c9", foreground="#1b5e20")
-        scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
+        self.tree.column("#0", width=240, stretch=True, minwidth=180)
+        self.tree.column("downloads", width=96, stretch=False, anchor="center")
+        self.tree.column("description", width=320, stretch=True)
+        self.tree.tag_configure("installed", background="#2a4030", foreground="#8fd49a")
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
 
-        detail = ttk.LabelFrame(self, text="Версия для установки")
-        detail.pack(fill="x", padx=10, pady=4)
-        self.version_combo = ttk.Combobox(detail, width=70, state="disabled")
-        self.version_combo.pack(side="left", padx=8, pady=8)
+        detail = ttk.LabelFrame(shell, text="  Версия для установки  ", padding=(12, 10))
+        detail.pack(fill="x", pady=(8, 0))
+        detail.columnconfigure(0, weight=1)
+        self.version_combo = ttk.Combobox(detail, state="disabled")
+        self.version_combo.grid(row=0, column=0, sticky="ew")
 
-        bottom = ttk.Frame(self)
-        bottom.pack(fill="x", padx=10, pady=6)
-
+        bottom = footer_bar(shell)
+        bottom.columnconfigure(1, weight=1)
         self.download_btn = ttk.Button(
             bottom,
             text="Скачать",
+            style="Accent.TButton",
             command=self._download,
             state="disabled",
         )
         self._update_download_button_text()
-        self.download_btn.pack(side="left")
-        self.hint_label = ttk.Label(bottom, text="", font=("", 8), foreground="gray")
-        self.hint_label.pack(side="left", padx=12)
+        self.download_btn.grid(row=0, column=0, sticky="w")
+        self.hint_label = ttk.Label(bottom, text="", style="Hint.TLabel")
+        self.hint_label.grid(row=0, column=1, sticky="w", padx=(14, 14))
         self._update_type_hint()
-        ttk.Button(bottom, text="Закрыть", command=self._close).pack(side="right")
-
-        self.status_var = tk.StringVar(value="Загрузка популярного контента...")
-        ttk.Label(self, textvariable=self.status_var, wraplength=700).pack(
-            anchor="w", padx=10, pady=2
+        ttk.Button(bottom, text="Закрыть", style="Tool.TButton", command=self._close).grid(
+            row=0, column=2, sticky="e"
         )
-        self.progress = ttk.Progressbar(self, mode="determinate", length=700)
-        self.progress.pack(fill="x", padx=10, pady=4)
+
+        status_row = ttk.Frame(shell)
+        status_row.pack(fill="x", padx=LIST_PAD[0], pady=(6, 0))
+        self.status_var = tk.StringVar(value="Загрузка популярного контента...")
+        ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").pack(
+            anchor="w"
+        )
+        self.progress = ttk.Progressbar(status_row, mode="determinate")
+        self.progress.pack(fill="x", pady=(6, 0))
 
     def _content_type(self) -> str:
         label = self.type_var.get()

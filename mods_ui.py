@@ -10,6 +10,7 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from tooltips import add_tooltip
+from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, content_area, tree_with_scrollbar
 from modrinth import (
     LOADER_IDS,
     ModUpdateInfo,
@@ -38,8 +39,8 @@ class ModManagerWindow(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title(f"Моды — {game_dir.name}")
-        self.geometry("720x420")
-        self.minsize(600, 360)
+        self.geometry("760x440")
+        self.minsize(640, 380)
 
         self._entries: list[dict] = []
         self._updates: dict[str, ModUpdateInfo] = {}
@@ -58,46 +59,44 @@ class ModManagerWindow(tk.Toplevel):
 
     def _build_ui(self) -> None:
         toolbar = ttk.Frame(self)
-        toolbar.pack(fill="x", padx=10, pady=8)
+        toolbar.pack(fill="x", padx=TOOLBAR_PAD[0], pady=TOOLBAR_PAD)
         bar = (
-            ("Обновить список", self._reload_list, "Перечитать папку mods/"),
-            ("Проверить обновления", self._check_updates, "Сравнить с Modrinth"),
-            ("Обновить выбранный", self._update_selected, "Скачать новую версию мода"),
-            ("Обновить все", self._update_all, "Обновить все моды с доступным апдейтом"),
-            ("Включить", self._enable_selected, "Убрать суффикс .disabled"),
-            ("Отключить", self._disable_selected, "Временно выключить мод"),
+            ("Обновить", self._reload_list, "Перечитать папку mods/"),
+            ("Проверить", self._check_updates, "Сравнить с Modrinth"),
+            ("Обновить", self._update_selected, "Скачать новую версию мода"),
+            ("Все", self._update_all, "Обновить все моды с доступным апдейтом"),
+            ("Вкл.", self._enable_selected, "Убрать суффикс .disabled"),
+            ("Выкл.", self._disable_selected, "Временно выключить мод"),
             ("Удалить", self._delete_selected, "Удалить файл мода с диска"),
         )
         for text, cmd, tip in bar:
-            btn = ttk.Button(toolbar, text=text, command=cmd)
-            btn.pack(side="left", padx=(0, 6))
+            btn = ttk.Button(toolbar, text=text, style="Tool.TButton", command=cmd)
+            btn.pack(side="left", padx=(0, 8))
             add_tooltip(btn, tip)
 
-        list_frame = ttk.Frame(self)
-        list_frame.pack(fill="both", expand=True, padx=10, pady=4)
-
+        list_frame = content_area(self)
         columns = ("name", "status", "version", "update")
-        self.tree = ttk.Treeview(
-            list_frame, columns=columns, show="headings", selectmode="browse"
+        self.tree, _scroll = tree_with_scrollbar(
+            list_frame, columns=columns, show="headings"
         )
         self.tree.heading("name", text="Файл")
         self.tree.heading("status", text="Статус")
         self.tree.heading("version", text="Версия / проект")
         self.tree.heading("update", text="Обновление")
-        self.tree.column("name", width=220, stretch=False)
-        self.tree.column("status", width=90, stretch=False)
-        self.tree.column("version", width=220)
-        self.tree.column("update", width=160)
-        scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
-        self.tree.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
+        self.tree.column("name", width=200, stretch=True, minwidth=140)
+        self.tree.column("status", width=88, stretch=False, anchor="center")
+        self.tree.column("version", width=200, stretch=True)
+        self.tree.column("update", width=150, stretch=False)
 
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.status_var, wraplength=680).pack(
-            anchor="w", padx=10, pady=6
+        ttk.Label(self, textvariable=self.status_var, style="Status.TLabel", wraplength=700).pack(
+            anchor="w", padx=BOTTOM_PAD[0], pady=(4, 0)
         )
-        ttk.Button(self, text="Закрыть", command=self.destroy).pack(pady=6)
+        footer = ttk.Frame(self)
+        footer.pack(fill="x", padx=BOTTOM_PAD[0], pady=BOTTOM_PAD)
+        ttk.Button(footer, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
+            side="right"
+        )
 
     def _selected_entry(self) -> dict | None:
         selection = self.tree.selection()

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
+from theme import FONTS
+
 
 class ToolTip:
     def __init__(self, widget: tk.Misc, text: str, *, delay_ms: int = 450) -> None:
@@ -57,7 +59,7 @@ class ToolTip:
             borderwidth=1,
             highlightbackground=border,
             highlightthickness=1,
-            font=("Segoe UI", 8),
+            font=FONTS["hint"],
             padx=7,
             pady=5,
             wraplength=300,
