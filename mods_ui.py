@@ -10,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from tooltips import add_tooltip
-from ui_layout import BOTTOM_PAD, TOOLBAR_PAD, content_area, tree_with_scrollbar
+from ui_layout import autosize_toplevel, toplevel_shell, tree_with_scrollbar
 from modrinth import (
     LOADER_IDS,
     ModUpdateInfo,
@@ -39,13 +39,12 @@ class ModManagerWindow(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title(f"Моды — {game_dir.name}")
-        self.geometry("760x520")
-        self.minsize(640, 460)
 
         self._entries: list[dict] = []
         self._updates: dict[str, ModUpdateInfo] = {}
 
         self._build_ui()
+        autosize_toplevel(self, min_width=640, min_height=400)
         theme_for_child(self, parent)
         self.transient(parent)
         self.grab_set()
@@ -58,8 +57,7 @@ class ModManagerWindow(tk.Toplevel):
         return LOADER_IDS.get(loader_id)
 
     def _build_ui(self) -> None:
-        toolbar = ttk.Frame(self)
-        toolbar.pack(fill="x", padx=TOOLBAR_PAD[0], pady=TOOLBAR_PAD)
+        _shell, toolbar, body, footer = toplevel_shell(self)
         bar = (
             ("Обновить", self._reload_list, "Перечитать папку mods/"),
             ("Проверить", self._check_updates, "Сравнить с Modrinth"),
@@ -74,10 +72,9 @@ class ModManagerWindow(tk.Toplevel):
             btn.pack(side="left", padx=(0, 8))
             add_tooltip(btn, tip)
 
-        list_frame = content_area(self)
         columns = ("name", "status", "version", "update")
         self.tree, _scroll = tree_with_scrollbar(
-            list_frame, columns=columns, show="headings"
+            body, columns=columns, show="headings"
         )
         self.tree.heading("name", text="Файл")
         self.tree.heading("status", text="Статус")
@@ -89,12 +86,12 @@ class ModManagerWindow(tk.Toplevel):
         self.tree.column("update", width=150, stretch=False)
 
         self.status_var = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.status_var, style="Status.TLabel", wraplength=700).pack(
-            anchor="w", padx=BOTTOM_PAD[0], pady=(4, 0)
+        ttk.Label(footer, textvariable=self.status_var, style="Status.TLabel", wraplength=680).grid(
+            row=0, column=0, columnspan=2, sticky="w", pady=(0, 8)
         )
-        footer = ttk.Frame(self)
-        footer.pack(fill="x", padx=BOTTOM_PAD[0], pady=BOTTOM_PAD)
-        ttk.Button(footer, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
+        actions = ttk.Frame(footer)
+        actions.grid(row=1, column=0, columnspan=2, sticky="e")
+        ttk.Button(actions, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
             side="right"
         )
 

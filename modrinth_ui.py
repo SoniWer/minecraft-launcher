@@ -12,7 +12,7 @@ from typing import Any
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
-from ui_layout import BTN_GAP, WINDOW_PAD, tree_with_scrollbar
+from ui_layout import BTN_GAP, WINDOW_PAD, autosize_toplevel, tree_with_scrollbar
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from modrinth import (
     CONTENT_FOLDERS,
@@ -79,8 +79,6 @@ class ModrinthBrowser(tk.Toplevel):
         self.on_auto_backup = on_auto_backup
 
         self.title("Каталог Modrinth")
-        self.geometry("840x800")
-        self.minsize(760, 740)
 
         self._hits: list[dict] = []
         self._hit_by_iid: dict[str, dict] = {}
@@ -91,6 +89,7 @@ class ModrinthBrowser(tk.Toplevel):
         self._icon_refs: list[object] = []
 
         self._build_ui()
+        autosize_toplevel(self, min_width=760, min_height=480)
         self._update_loader_filter_state()
         theme_for_child(self, parent)
         self.transient(parent)
@@ -126,6 +125,8 @@ class ModrinthBrowser(tk.Toplevel):
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(2, weight=1)
+        for fixed_row in (3, 4, 5):
+            shell.rowconfigure(fixed_row, weight=0)
 
         filters = ttk.Frame(shell)
         filters.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -212,8 +213,18 @@ class ModrinthBrowser(tk.Toplevel):
         self.version_combo = ttk.Combobox(detail, state="disabled")
         self.version_combo.grid(row=0, column=0, sticky="ew")
 
+        status_row = ttk.Frame(shell)
+        status_row.grid(row=4, column=0, sticky="ew", pady=(8, 0))
+        status_row.columnconfigure(0, weight=1)
+        self.status_var = tk.StringVar(value="Загрузка популярного контента...")
+        ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").grid(
+            row=0, column=0, sticky="w"
+        )
+        self.progress = ttk.Progressbar(status_row, mode="determinate")
+        self.progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+
         bottom = ttk.Frame(shell)
-        bottom.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        bottom.grid(row=5, column=0, sticky="ew", pady=(10, 0))
         bottom.columnconfigure(1, weight=1)
         self.download_btn = ttk.Button(
             bottom,
@@ -230,16 +241,6 @@ class ModrinthBrowser(tk.Toplevel):
         ttk.Button(bottom, text="Закрыть", style="Tool.TButton", command=self._close).grid(
             row=0, column=2, sticky="e"
         )
-
-        status_row = ttk.Frame(shell)
-        status_row.grid(row=5, column=0, sticky="ew", pady=(8, 0))
-        status_row.columnconfigure(0, weight=1)
-        self.status_var = tk.StringVar(value="Загрузка популярного контента...")
-        ttk.Label(status_row, textvariable=self.status_var, style="Status.TLabel").grid(
-            row=0, column=0, sticky="w"
-        )
-        self.progress = ttk.Progressbar(status_row, mode="determinate")
-        self.progress.grid(row=1, column=0, sticky="ew", pady=(6, 0))
 
         install_no_autoselect(self.type_combo, self.type_var)
         install_no_autoselect(self.loader_filter_combo, self.loader_filter_var)

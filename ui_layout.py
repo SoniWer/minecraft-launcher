@@ -109,6 +109,55 @@ def footer_bar(parent: ttk.Misc) -> ttk.Frame:
     return bar
 
 
+def toplevel_shell(window: tk.Misc) -> tuple[ttk.Frame, ttk.Frame, ttk.Frame, ttk.Frame]:
+    """
+    Сетка для дочернего окна: панель инструментов, растягиваемое тело, нижний блок.
+    Нижний блок не сжимается — кнопки «Закрыть» всегда видны.
+    """
+    shell = ttk.Frame(window, padding=WINDOW_PAD)
+    shell.pack(fill="both", expand=True)
+    shell.columnconfigure(0, weight=1)
+    shell.rowconfigure(1, weight=1)
+
+    toolbar = ttk.Frame(shell)
+    toolbar.grid(row=0, column=0, sticky="ew", padx=TOOLBAR_PAD[0], pady=TOOLBAR_PAD)
+
+    body = ttk.Frame(shell)
+    body.grid(row=1, column=0, sticky="nsew")
+    body.columnconfigure(0, weight=1)
+    body.rowconfigure(0, weight=1)
+
+    footer = ttk.Frame(shell)
+    footer.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+    footer.columnconfigure(0, weight=1)
+    return shell, toolbar, body, footer
+
+
+def autosize_toplevel(
+    window: tk.Misc,
+    *,
+    min_width: int = 520,
+    min_height: int = 360,
+    pad: int = 24,
+    max_screen_fraction: float = 0.9,
+) -> None:
+    """Подгоняет размер окна под содержимое (после сборки виджетов)."""
+    window.update_idletasks()
+    req_w = window.winfo_reqwidth() + pad
+    req_h = window.winfo_reqheight() + pad
+    width = max(min_width, req_w)
+    height = max(min_height, req_h)
+    try:
+        sw = window.winfo_screenwidth()
+        sh = window.winfo_screenheight()
+        width = min(width, int(sw * max_screen_fraction))
+        height = min(height, int(sh * max_screen_fraction))
+    except tk.TclError:
+        pass
+    window.geometry(f"{width}x{height}")
+    window.minsize(min_width, min_height)
+
+
 def tree_with_scrollbar(
     parent: ttk.Misc,
     *,

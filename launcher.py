@@ -574,13 +574,21 @@ class MinecraftLauncherApp:
         return mb
 
     def _update_content_menu_state(self) -> None:
-        vanilla = self._loader_id() == "vanilla"
-        state = tk.DISABLED if vanilla else tk.NORMAL
+        """Пункты меню всегда кликабельны — ограничения показываются в обработчиках."""
         try:
-            self._content_menu.entryconfig(0, state=state)
-            self._content_menu.entryconfig(2, state=state)
+            self._content_menu.entryconfig(0, state=tk.NORMAL)
+            self._content_menu.entryconfig(1, state=tk.NORMAL)
+            self._content_menu.entryconfig(2, state=tk.NORMAL)
         except (tk.TclError, AttributeError):
             pass
+
+    def _resolved_mc_version(self) -> str:
+        version = self.version_combo.get().strip()
+        if version:
+            return version
+        if self.current_build:
+            return (self.current_build.mc_version or "").strip()
+        return ""
 
     def _open_pack_list(self, which: str) -> None:
         if which == "shaders" and self._loader_id() == "vanilla":
@@ -1117,18 +1125,18 @@ class MinecraftLauncherApp:
             return
         from mods_ui import ModManagerWindow
 
-        mc_version = self.version_combo.get().strip()
+        mc_version = self._resolved_mc_version()
         if not mc_version:
             messagebox.showwarning(
                 "Внимание",
-                "Выберите версию Minecraft для проверки обновлений модов.",
+                "Выберите версию Minecraft (или сборку с версией) для работы с модами.",
                 parent=self.root,
             )
             return
         ModManagerWindow(
             self.root,
             game_dir=self._game_dir(),
-            get_mc_version=lambda: self.version_combo.get().strip(),
+            get_mc_version=self._resolved_mc_version,
             get_loader_id=self._loader_id,
             on_auto_backup=lambda: self._auto_backup("mods-update"),
         )
@@ -1152,11 +1160,12 @@ class MinecraftLauncherApp:
     def _open_modrinth(self) -> None:
         from modrinth_ui import ModrinthBrowser
 
-        mc_version = self.version_combo.get().strip()
+        mc_version = self._resolved_mc_version()
         if not mc_version:
             messagebox.showwarning(
                 "Внимание",
-                "Выберите версию Minecraft — каталог фильтрует контент по ней.",
+                "Выберите версию Minecraft (или сборку с версией) — каталог фильтрует контент по ней.",
+                parent=self.root,
             )
             return
 
@@ -1164,7 +1173,7 @@ class MinecraftLauncherApp:
             self.root,
             minecraft_dir=self._game_dir(),
             shared_minecraft_dir=Path(self.shared_dir),
-            get_mc_version=lambda: self.version_combo.get().strip(),
+            get_mc_version=self._resolved_mc_version,
             get_loader_id=self._loader_id,
             on_modpack_installed=self._apply_modpack_profile,
             on_create_build_for_modpack=self._create_build_for_modpack,
