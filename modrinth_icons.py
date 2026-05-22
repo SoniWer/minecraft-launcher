@@ -1,74 +1,87 @@
-"""Иконки проектов Modrinth для Treeview."""
+"""Иконки проектов Modrinth (загрузка в фоне, отображение в UI-потоке)."""
 
 from __future__ import annotations
 
 import io
-import tkinter as tk
-from urllib.parse import urlparse
+import threading
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import requests
 
 from modrinth import USER_AGENT
 
-_ICON_CACHE: dict[str, tk.PhotoImage] = {}
-_PLACEHOLDER: tk.PhotoImage | None = None
+if TYPE_CHECKING:
+    import tkinter as tk
+    from PIL import Image
+
+_BYTES_CACHE: dict[str, bytes] = {}
+_CACHE_LOCK = threading.Lock()
+_MAX_CACHE = 256
 
 
-def _fetch_image_bytes(url: str) -> bytes | None:
+def _fetch_bytes(url: str) -> bytes | None:
     if not url or not url.startswith("http"):
         return None
+    with _CACHE_LOCK:
+        if url in _BYTES_CACHE:
+            return _BYTES_CACHE[url]
     try:
-        resp = requests.get(
-            url,
-            timeout=12,
-            headers={"User-Agent": USER_AGENT},
-        )
+        resp = requests.get(url, timeout=12, headers={"User-Agent": USER_AGENT})
         if resp.status_code != 200:
             return None
-        return resp.content
+        data = resp.content
     except requests.RequestException:
         return None
+    with _CACHE_LOCK:
+        if len(_BYTES_CACHE) >= _MAX_CACHE:
+            _BYTES_CACHE.pop(next(iter(_BYTES_CACHE)))
+        _BYTES_CACHE[url] = data
+    return data
 
 
-def get_modrinth_icon(
-    url: str | None,
-    *,
-    master: tk.Misc,
-    size: int = 32,
-) -> tk.PhotoImage | None:
-    """Загрузить иконку Modrinth (кэш по URL)."""
-    global _PLACEHOLDER
-    if not url:
-        return _placeholder(master, size)
-
-    key = f"{urlparse(url).path}@{size}"
-    if key in _ICON_CACHE:
-        return _ICON_CACHE[key]
-
-    raw = _fetch_image_bytes(url)
+def fetch_icon_rgba(url: str | None, *, size: int = 32) -> Any | None:
+    """PIL.Image RGBA — можно вызывать из фонового потока."""
+    raw = _fetch_bytes(url) if url else None
     if not raw:
-        return _placeholder(master, size)
-
+        return _placeholder_rgba(size)
     try:
-        from PIL import Image, ImageTk
+        from PIL import Image
 
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-        img = img.resize((size, size), Image.Resampling.LANCZOS)
-        photo = ImageTk.PhotoImage(img, master=master)
-        _ICON_CACHE[key] = photo
-        return photo
+        return img.resize((size, size), Image.Resampling.LANCZOS)
     except Exception:
-        return _placeholder(master, size)
+        return _placeholder_rgba(size)
 
 
-def _placeholder(master: tk.Misc, size: int) -> tk.PhotoImage | None:
-    global _PLACEHOLDER
+def _placeholder_rgba(size: int) -> Any:
+    from PIL import Image
+
+    return Image.new("RGBA", (size, size), (80, 80, 90, 255))
+
+
+def icon_photo_from_rgba(img: Any, master: "tk.Misc") -> "tk.PhotoImage | None":
+    """Создать PhotoImage только из главного потока Tk."""
     try:
-        from PIL import Image, ImageTk
+        from PIL import ImageTk
 
-        if _PLACEHOLDER is None:
-            img = Image.new("RGBA", (size, size), (80, 80, 90, 255))
-            _PLACEHOLDER = ImageTk.PhotoImage(img, master=master)
-        return _PLACEHOLDER
+        return ImageTk.PhotoImage(img, master=master)
     except Exception:
         return None
+
+
+def load_icons_batch(
+    items: list[tuple[str, str | None]],
+    *,
+    size: int = 32,
+    on_done: Callable[[list[tuple[str, Any]]], None],
+) -> None:
+    """Загрузить иконки в фоне; on_done вызывается из фонового потока — планируйте UI сами."""
+
+    def worker() -> None:
+        out: list[tuple[str, Any]] = []
+        for iid, url in items:
+            out.append((iid, fetch_icon_rgba(url, size=size)))
+        on_done(out)
+
+    threading.Thread(target=worker, daemon=True).start()

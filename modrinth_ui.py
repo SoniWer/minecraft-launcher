@@ -11,7 +11,7 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from theme import theme_for_child
-from modrinth_icons import get_modrinth_icon
+from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from modrinth import (
     CONTENT_FOLDERS,
     LOADER_IDS,
@@ -85,6 +85,7 @@ class ModrinthBrowser(tk.Toplevel):
         self._search_offset = 0
         self._search_total = 0
         self._enrich_generation = 0
+        self._icon_refs: list[object] = []
 
         self._build_ui()
         self._update_loader_filter_state()
@@ -306,6 +307,7 @@ class ModrinthBrowser(tk.Toplevel):
 
     def _clear_results(self) -> None:
         self._enrich_generation += 1
+        self._icon_refs.clear()
         self.tree.delete(*self.tree.get_children())
         self._hits.clear()
         self._hit_by_iid.clear()
@@ -339,39 +341,45 @@ class ModrinthBrowser(tk.Toplevel):
         if len(desc) > 120:
             desc = desc[:117] + "..."
         tags = ("installed",) if hit.get("_installed") else ()
-        icon = get_modrinth_icon(hit.get("icon_url"), master=self)
         iid = self.tree.insert(
             "",
             "end",
             text=self._format_title(hit),
-            image=icon if icon else "",
             values=(hit.get("downloads", 0), desc),
             tags=tags,
         )
         self._hit_by_iid[iid] = hit
-        if not icon and hit.get("icon_url"):
-            self._schedule_icon_load(iid, hit.get("icon_url"))
         return iid
 
-    def _schedule_icon_load(self, iid: str, icon_url: str | None) -> None:
-        if not icon_url:
+    def _load_icons_batch(self, items: list[tuple[str, dict]], generation: int) -> None:
+        pending = [
+            (iid, hit.get("icon_url"))
+            for iid, hit in items
+            if hit.get("icon_url")
+        ]
+        if not pending:
             return
 
-        def worker() -> None:
-            icon = get_modrinth_icon(icon_url, master=self)
-
-            def apply() -> None:
-                if not self._is_alive():
-                    return
+        def apply(loaded: list[tuple[str, object]]) -> None:
+            if not self._is_alive() or generation != self._enrich_generation:
+                return
+            for iid, rgba in loaded:
+                if rgba is None:
+                    continue
                 try:
-                    if self.tree.exists(iid) and icon:
-                        self.tree.item(iid, image=icon)
+                    if not self.tree.exists(iid):
+                        continue
                 except tk.TclError:
-                    pass
+                    continue
+                photo = icon_photo_from_rgba(rgba, self)
+                if photo:
+                    self.tree.item(iid, image=photo)
+                    self._icon_refs.append(photo)
 
-            self._schedule_ui(apply)
+        def on_done(loaded: list[tuple[str, object]]) -> None:
+            self._schedule_ui(lambda: apply(loaded))
 
-        threading.Thread(target=worker, daemon=True).start()
+        load_icons_batch(pending, on_done=on_done)
 
     def _update_hit_row(self, iid: str, hit: dict) -> None:
         if not self._is_alive():
@@ -530,6 +538,7 @@ class ModrinthBrowser(tk.Toplevel):
         )
 
         if new_items:
+            self._load_icons_batch(new_items, generation)
             self._enrich_hits_async(new_items, generation)
 
     def _selected_hit(self) -> dict | None:

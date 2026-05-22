@@ -32,8 +32,9 @@ class LauncherSettings:
             data = json.loads(path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 return cls()
+            fields = cls.__dataclass_fields__
             kwargs = {}
-            for key in cls.__dataclass_fields__:
+            for key in fields:
                 if key not in data:
                     continue
                 val = data[key]

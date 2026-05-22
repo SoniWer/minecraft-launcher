@@ -12,7 +12,19 @@ from urllib.parse import quote
 import requests
 
 MODRINTH_API = "https://api.modrinth.com/v2"
-USER_AGENT = "SenkoMinecraftLauncher/1.0 (github.com/SoniWer/minecraft-launcher)"
+
+
+def modrinth_user_agent() -> str:
+    try:
+        from version import LAUNCHER_VERSION
+
+        ver = LAUNCHER_VERSION
+    except Exception:
+        ver = "dev"
+    return f"SenkoMinecraftLauncher/{ver} (github.com/SoniWer/minecraft-launcher)"
+
+
+USER_AGENT = modrinth_user_agent()
 
 CONTENT_FOLDERS = {
     "mod": "mods",
