@@ -79,7 +79,7 @@ from ui_layout import (
 from tooltips import add_tooltip
 from ui_async import run_background
 from launcher_log import error as log_error, info as log_info, setup as setup_launcher_log
-from launcher_update import UpdateInfo, check_for_update
+from launcher_update import UpdateInfo, apply_self_update, check_for_update
 from version import LAUNCHER_VERSION
 
 MOD_LOADERS: list[tuple[str, str]] = [
@@ -154,6 +154,7 @@ class MinecraftLauncherApp:
         self._suppress_build_save = False
         self.settings = LauncherSettings.load(LAUNCHER_DIR)
         self._pending_update: UpdateInfo | None = None
+        self._update_in_progress = False
         setup_launcher_log(LAUNCHER_DIR)
         log_info(f"Launcher started v{LAUNCHER_VERSION}")
 
@@ -1534,17 +1535,71 @@ class MinecraftLauncherApp:
             on_error=lambda _exc: None,
         )
 
+    def _confirm_apply_update(self, info: UpdateInfo) -> bool:
+        return messagebox.askyesno(
+            "Обновление лаунчера",
+            f"Доступна версия {info.latest} (у вас {info.current}).\n\n"
+            f"Скачать {info.target_exe_name} и установить автоматически?\n"
+            "Лаунчер закроется и запустится заново.",
+            parent=self.root,
+        )
+
+    def _apply_update(self, info: UpdateInfo) -> None:
+        self.status_var.set(f"Скачивание v{info.latest}...")
+        self._update_in_progress = True
+
+        def progress(done: int, total: int) -> None:
+            if total > 0:
+                pct = min(100, int(done * 100 / total))
+                text = f"Скачивание v{info.latest}… {pct}%"
+            else:
+                mb = done / (1024 * 1024)
+                text = f"Скачивание v{info.latest}… {mb:.1f} МБ"
+            self.root.after(0, lambda t=text: self.status_var.set(t))
+
+        def worker() -> Path:
+            return apply_self_update(info, on_progress=progress)
+
+        def done(dest: Path) -> None:
+            self._update_in_progress = False
+            self._pending_update = None
+            if hasattr(self, "btn_update"):
+                self.btn_update.configure(text="Утилиты")
+            if getattr(sys, "frozen", False):
+                self.status_var.set("Перезапуск…")
+                self.root.quit()
+                return
+            messagebox.showinfo(
+                "Обновление",
+                f"Файл сохранён:\n{dest}\n\nЗапущена новая версия.",
+                parent=self.root,
+            )
+            self.status_var.set("Готово")
+
+        run_background(
+            self.root,
+            worker,
+            done,
+            on_error=self._on_update_failed,
+        )
+
+    def _on_update_failed(self, exc: Exception) -> None:
+        self._update_in_progress = False
+        messagebox.showerror(
+            "Обновление",
+            f"Не удалось установить обновление:\n{exc}",
+            parent=self.root,
+        )
+        self.status_var.set("Ошибка обновления")
+
     def _check_updates_manual(self) -> None:
+        if getattr(self, "_update_in_progress", False):
+            return
         self.status_var.set("Проверка обновлений...")
         if self._pending_update:
             info = self._pending_update
-            if messagebox.askyesno(
-                "Обновление лаунчера",
-                f"Доступна версия {info.latest} (у вас {info.current}).\n\n"
-                "Открыть страницу скачивания?",
-                parent=self.root,
-            ):
-                webbrowser.open(info.download_url)
+            if self._confirm_apply_update(info):
+                self._apply_update(info)
             return
 
         def worker() -> UpdateInfo | None:
@@ -1554,13 +1609,8 @@ class MinecraftLauncherApp:
             if info:
                 self._pending_update = info
                 self.btn_update.configure(text=f"Обновление v{info.latest}")
-                if messagebox.askyesno(
-                    "Обновление лаунчера",
-                    f"Доступна версия {info.latest} (у вас {info.current}).\n\n"
-                    "Открыть страницу скачивания?",
-                    parent=self.root,
-                ):
-                    webbrowser.open(info.download_url)
+                if self._confirm_apply_update(info):
+                    self._apply_update(info)
             else:
                 messagebox.showinfo(
                     "Обновление",
