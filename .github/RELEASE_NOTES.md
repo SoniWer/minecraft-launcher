@@ -1,6 +1,10 @@
 ## Скачать
 
-Файл **MinecraftLauncher.exe** — готовый лаунчер для Windows (Python не нужен).
+Файл **MinecraftLauncher-vX.Y.Z.exe** — готовый лаунчер для Windows (Python не нужен).
+
+## Что нового в v1.4.3
+
+- В релизе один EXE: `MinecraftLauncher-v1.4.3.exe` (без дубликата без версии)
 
 ## Что нового в v1.4.2
 
@@ -12,7 +16,7 @@
 
 ## Установка
 
-1. Скачайте `MinecraftLauncher.exe` из раздела **Assets** ниже.
+1. Скачайте `MinecraftLauncher-v1.4.3.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)

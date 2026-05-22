@@ -2,7 +2,7 @@
 
 Лаунчер **Minecraft Java Edition** для Windows: сборки с модами, Modrinth, выбор Java, офлайн-никнейм.
 
-**Скачать:** [Releases](https://github.com/SoniWer/minecraft-launcher/releases) → последний релиз → **`MinecraftLauncher-vX.Y.Z.exe`** (или `MinecraftLauncher.exe`).
+**Скачать:** [Releases](https://github.com/SoniWer/minecraft-launcher/releases) → последний релиз → **`MinecraftLauncher-vX.Y.Z.exe`**.
 
 Исходный код открыт в этом репозитории (Python). Готовый лаунчер — только EXE из Releases.
 
@@ -10,7 +10,7 @@
 
 ## Установка
 
-1. Скачайте **`MinecraftLauncher.exe`** из [Releases](https://github.com/SoniWer/minecraft-launcher/releases).
+1. Скачайте **`MinecraftLauncher-vX.Y.Z.exe`** из [Releases](https://github.com/SoniWer/minecraft-launcher/releases) (версия в имени файла).
 2. Положите в любую папку (например `C:\Games\MinecraftLauncher\`).
 3. Запустите. Если SmartScreen предупреждает: **Подробнее** → **Выполнить в любом случае**.
 
@@ -73,6 +73,9 @@
 ---
 
 ## Что нового
+
+### v1.4.3
+- В релизе только один EXE с версией в имени файла
 
 ### v1.4.2
 - Без прокрутки главного окна, фикс размеров и галочек Modrinth, EXE с версией в имени

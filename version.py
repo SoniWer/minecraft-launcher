@@ -1,6 +1,6 @@
 """Версия лаунчера (совпадает с тегом релиза на GitHub)."""
 
-LAUNCHER_VERSION = "1.4.2"
+LAUNCHER_VERSION = "1.4.3"
 GITHUB_REPO = "SoniWer/minecraft-launcher"
 
 

@@ -49,7 +49,7 @@ jobs:
           }
           $ver = python -c "from version import LAUNCHER_VERSION; print(LAUNCHER_VERSION)"
           $versioned = "MinecraftLauncher-v$ver.exe"
-          Copy-Item $exe $versioned -Force
+          Move-Item $exe $versioned -Force
           $size = (Get-Item $versioned).Length
           if ($size -lt 1MB) {
             Write-Error "Подозрительно маленький EXE: $size байт"
@@ -76,9 +76,7 @@ jobs:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Minecraft Launcher ${{ steps.ver.outputs.tag }}
           body_path: .github/RELEASE_NOTES.md
-          files: |
-            MinecraftLauncher.exe
-            ${{ steps.ver.outputs.exe }}
+          files: ${{ steps.ver.outputs.exe }}
           fail_on_unmatched_files: true
           draft: false
           prerelease: false
