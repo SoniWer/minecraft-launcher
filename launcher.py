@@ -78,6 +78,7 @@ from ui_layout import (
     SHELL_PAD,
     TAB_PAD,
     app_header,
+    center_toplevel,
     form_field,
     form_hint,
     form_label,
@@ -86,7 +87,12 @@ from ui_layout import (
 from tooltips import add_tooltip
 from ui_async import run_background
 from launcher_log import error as log_error, info as log_info, setup as setup_launcher_log
-from launcher_update import UpdateInfo, apply_self_update, check_for_update
+from launcher_update import (
+    UpdateInfo,
+    apply_self_update,
+    check_for_update,
+    cleanup_stale_launcher_exes,
+)
 from version import LAUNCHER_VERSION
 
 MOD_LOADERS: list[tuple[str, str]] = [
@@ -163,17 +169,19 @@ class MinecraftLauncherApp:
         self._pending_update: UpdateInfo | None = None
         self._update_in_progress = False
         setup_launcher_log(LAUNCHER_DIR)
+        cleanup_stale_launcher_exes()
         log_info(f"Launcher started v{LAUNCHER_VERSION}")
 
         if (
             self.settings.window_width >= 820
             and self.settings.window_height >= 480
         ):
-            self.root.geometry(
-                f"{self.settings.window_width}x{self.settings.window_height}"
-            )
+            self._window_w = self.settings.window_width
+            self._window_h = self.settings.window_height
         else:
-            self.root.geometry("980x640")
+            self._window_w = 980
+            self._window_h = 640
+        self.root.geometry(f"{self._window_w}x{self._window_h}")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.java_installs: list[JavaInstall] = []
         self._game_tracker = GameProcessTracker(
@@ -194,6 +202,12 @@ class MinecraftLauncherApp:
         self.root.after(400, self._check_crash_prompt)
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
+        self.root.after(0, self._center_main_window)
+
+    def _center_main_window(self) -> None:
+        w = getattr(self, "_window_w", 980)
+        h = getattr(self, "_window_h", 640)
+        center_toplevel(self.root, width=w, height=h)
 
     def _game_dir(self) -> Path:
         if self.current_build:
@@ -452,7 +466,10 @@ class MinecraftLauncherApp:
 
     def _ensure_window_height(self, min_h: int) -> None:
         if self.root.winfo_height() < min_h:
-            self.root.geometry(f"{max(self.root.winfo_width(), 980)}x{min_h}")
+            w = max(self.root.winfo_width(), 980)
+            self._window_h = min_h
+            self.root.geometry(f"{w}x{min_h}")
+            center_toplevel(self.root, width=w, height=min_h)
 
     def _fit_window_to_content(self) -> None:
         self.root.update_idletasks()

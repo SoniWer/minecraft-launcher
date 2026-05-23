@@ -133,6 +133,28 @@ def toplevel_shell(window: tk.Misc) -> tuple[ttk.Frame, ttk.Frame, ttk.Frame, tt
     return shell, toolbar, body, footer
 
 
+def center_toplevel(
+    window: tk.Misc,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+) -> None:
+    """Размещает окно по центру экрана (размеры — текущие или заданные)."""
+    window.update_idletasks()
+    w = width if width is not None else window.winfo_width()
+    h = height if height is not None else window.winfo_height()
+    if w < 100 or h < 100:
+        return
+    try:
+        sw = window.winfo_screenwidth()
+        sh = window.winfo_screenheight()
+    except tk.TclError:
+        return
+    x = max(0, (sw - w) // 2)
+    y = max(0, (sh - h) // 2)
+    window.geometry(f"{w}x{h}+{x}+{y}")
+
+
 def autosize_toplevel(
     window: tk.Misc,
     *,

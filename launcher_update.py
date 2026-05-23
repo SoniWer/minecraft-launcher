@@ -133,23 +133,50 @@ def _ps_literal(path: Path) -> str:
     return str(path.resolve()).replace("'", "''")
 
 
+def cleanup_stale_launcher_exes() -> None:
+    """При запуске EXE убирает лишние MinecraftLauncher-v*.exe в папке лаунчера."""
+    if not getattr(sys, "frozen", False):
+        return
+    _cleanup_old_launcher_exes(launcher_dir(), Path(sys.executable))
+
+
+def _cleanup_old_launcher_exes(folder: Path, keep: Path) -> None:
+    """Удаляет старые MinecraftLauncher-v*.exe в папке (кроме новой версии)."""
+    keep_resolved = keep.resolve()
+    pattern = "MinecraftLauncher-v*.exe"
+    for path in folder.glob(pattern):
+        try:
+            if path.resolve() != keep_resolved and path.is_file():
+                path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    legacy = folder / "MinecraftLauncher.exe"
+    try:
+        if legacy.is_file() and legacy.resolve() != keep_resolved:
+            legacy.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def _schedule_windows_restart(
     new_exe: Path,
     *,
     parent_pid: int,
-    remove_exe: Path | None,
 ) -> None:
-    """Фоновый скрипт без окна: ждёт выход лаунчера, удаляет старый EXE, запускает новый."""
+    """Фоновый скрипт: ждёт выход лаунчера, удаляет все старые EXE, запускает новый."""
     folder = launcher_dir()
     script = folder / "_launcher_update.ps1"
-    new_path = _ps_literal(new_exe)
-    remove_block = ""
-    if remove_exe is not None and remove_exe.resolve() != new_exe.resolve():
-        old_path = _ps_literal(remove_exe)
-        remove_block = f"""
-$old = '{old_path}'
-if (Test-Path -LiteralPath $old) {{
-    Remove-Item -LiteralPath $old -Force -ErrorAction SilentlyContinue
+    new_path = _ps_literal(new_exe.resolve())
+    dir_path = _ps_literal(folder.resolve())
+    cleanup_block = f"""
+$dir = '{dir_path}'
+$keep = '{new_path}'
+Get-ChildItem -LiteralPath $dir -Filter 'MinecraftLauncher-v*.exe' -ErrorAction SilentlyContinue |
+  Where-Object {{ $_.FullName -ne $keep }} |
+  ForEach-Object {{ Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }}
+$legacy = Join-Path $dir 'MinecraftLauncher.exe'
+if ((Test-Path -LiteralPath $legacy) -and ($legacy -ne $keep)) {{
+  Remove-Item -LiteralPath $legacy -Force -ErrorAction SilentlyContinue
 }}
 """
     content = f"""$ErrorActionPreference = 'SilentlyContinue'
@@ -158,7 +185,7 @@ $deadline = (Get-Date).AddSeconds(90)
 while ((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {{
     Start-Sleep -Milliseconds 400
 }}
-{remove_block}
+{cleanup_block}
 Start-Process -FilePath '{new_path}'
 Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 """
@@ -198,11 +225,9 @@ def apply_self_update(
     download_update(info, dest, on_progress=on_progress)
 
     if getattr(sys, "frozen", False) and sys.platform == "win32":
-        old_exe = Path(sys.executable).resolve()
         _schedule_windows_restart(
             dest.resolve(),
             parent_pid=os.getpid(),
-            remove_exe=old_exe if old_exe != dest.resolve() else None,
         )
         return dest
 
