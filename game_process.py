@@ -13,7 +13,7 @@ class GameProcessTracker:
         self,
         on_status: Callable[[bool], None],
         *,
-        on_session_end: Callable[[int], None] | None = None,
+        on_session_end: Callable[..., None] | None = None,
     ) -> None:
         self._on_status = on_status
         self._on_session_end = on_session_end
@@ -55,10 +55,19 @@ class GameProcessTracker:
         started = self._started_at
         self._started_at = None
         self._on_status(False)
+        exit_code: int | None = None
+        if proc is not None:
+            try:
+                exit_code = proc.poll()
+            except Exception:
+                exit_code = None
         if started is not None and self._on_session_end is not None:
             elapsed = max(0, int(time.monotonic() - started))
             if elapsed > 0:
-                self._on_session_end(elapsed)
+                try:
+                    self._on_session_end(elapsed, exit_code)
+                except TypeError:
+                    self._on_session_end(elapsed)
 
     def _schedule_poll(self) -> None:
         if self._root is None:

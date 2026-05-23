@@ -39,7 +39,15 @@ from prelaunch_check import (
     run_prelaunch_checks,
 )
 from auto_backup import create_auto_backup
-from build_backup import BackupError, export_build_zip, import_build_zip
+from build_backup import (
+    BackupError,
+    export_build_zip,
+    export_partial_zip,
+    import_build_zip,
+)
+from build_icon import ensure_build_icon
+from changelog import changelog_for_version
+from install_status import format_install_status
 from drag_drop import enable_jar_drop
 from play_time import format_play_time
 from version_sort import sort_with_favorites
@@ -183,7 +191,9 @@ class MinecraftLauncherApp:
         self._load_java_installs_async()
         self._load_versions_async()
         self._apply_username_combo()
+        self._pending_crash: Path | None = None
         self.root.after(400, self._check_crash_prompt)
+        self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
 
     def _game_dir(self) -> Path:
@@ -226,19 +236,22 @@ class MinecraftLauncherApp:
         form_label(tab_build, 0, "Имя")
         build_row = ttk.Frame(tab_build)
         form_field(build_row, 0)
-        build_row.columnconfigure(0, weight=1)
+        build_row.columnconfigure(1, weight=1)
+        self._build_icon_photo = None
+        self.build_icon_label = tk.Label(build_row, width=32, height=32, bd=0)
+        self.build_icon_label.grid(row=0, column=0, padx=(0, BTN_GAP))
         self.build_var = tk.StringVar()
         self.build_combo = ttk.Combobox(
             build_row, textvariable=self.build_var, state="readonly"
         )
-        self.build_combo.grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
+        self.build_combo.grid(row=0, column=1, sticky="ew", padx=(0, BTN_GAP))
         self.build_combo.bind("<<ComboboxSelected>>", self._on_build_selected)
         for col, (text, cmd) in enumerate(
             (("+", self._create_build), ("⧉", self._clone_build), ("−", self._delete_build)),
-            start=1,
+            start=2,
         ):
             ttk.Button(build_row, text=text, width=3, command=cmd).grid(
-                row=0, column=col, padx=(0 if col == 1 else BTN_GAP, 0)
+                row=0, column=col, padx=(0 if col == 2 else BTN_GAP, 0)
             )
 
         self.build_summary_var = tk.StringVar(value="")
@@ -373,6 +386,22 @@ class MinecraftLauncherApp:
         ).grid(row=lr, column=0, sticky="ew", pady=(0, 10))
         lr += 1
 
+        self.crash_bar = ttk.Frame(launch)
+        self.crash_bar.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
+        self.crash_bar.columnconfigure(0, weight=1)
+        self.crash_msg_var = tk.StringVar(value="")
+        ttk.Label(
+            self.crash_bar, textvariable=self.crash_msg_var, style="Hint.TLabel", wraplength=260
+        ).grid(row=0, column=0, sticky="w")
+        ttk.Button(
+            self.crash_bar,
+            text="Открыть краш",
+            style="Tool.TButton",
+            command=self._open_pending_crash,
+        ).grid(row=0, column=1, padx=(8, 0))
+        self.crash_bar.grid_remove()
+        lr += 1
+
         menu_row = ttk.Frame(launch)
         menu_row.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
         for col in range(3):
@@ -492,12 +521,14 @@ class MinecraftLauncherApp:
         else:
             self.btn_favorite_version.configure(text="☆")
 
-    def _on_play_session_end(self, seconds: int) -> None:
-        if not self.current_build or seconds <= 0:
-            return
-        self.current_build.play_time_seconds += seconds
-        save_build(self.current_build, LAUNCHER_DIR)
-        self._update_play_time_label()
+    def _on_play_session_end(self, seconds: int, exit_code: int | None = None) -> None:
+        if self.current_build and seconds > 0:
+            self.current_build.play_time_seconds += seconds
+            save_build(self.current_build, LAUNCHER_DIR)
+            self._update_play_time_label()
+        self.root.after(400, self._refresh_crash_bar)
+        if exit_code not in (None, 0):
+            self.status_var.set(f"Игра завершилась (код {exit_code})")
 
     def _update_play_time_label(self) -> None:
         if not self.current_build:
@@ -608,6 +639,10 @@ class MinecraftLauncherApp:
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
         menu.add_command(label="Экспорт сборки", command=self._export_backup)
+        menu.add_command(label="Экспорт mods/", command=lambda: self._export_partial(mods=True))
+        menu.add_command(
+            label="Экспорт миров", command=lambda: self._export_partial(saves=True)
+        )
         menu.add_command(label="Импорт сборки", command=self._import_backup)
         menu.add_separator()
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
@@ -628,6 +663,7 @@ class MinecraftLauncherApp:
             ("текстуры", "resourcepacks", "Ресурспаки"),
             ("шейдеры", "shaderpacks", "Шейдеры"),
             ("миры", "saves", "Сохранения"),
+            ("скриншоты", "screenshots", "Скриншоты игры"),
             ("config", "config", "Конфиги"),
         ):
             if sub:
@@ -673,7 +709,16 @@ class MinecraftLauncherApp:
         loader = LOADER_DISPLAY.get(self.current_build.loader, "Vanilla")
         lv = self.current_build.loader_version
         extra = f" · {lv}" if lv and self.current_build.loader != "vanilla" else ""
-        self.build_summary_var.set(f"Сохранено в сборке: {mc} · {loader}{extra}")
+        install = format_install_status(
+            self.shared_dir,
+            mc_version=self._resolved_mc_version() or self.current_build.mc_version,
+            loader_id=self.current_build.loader,
+            loader_version=lv,
+        )
+        self.build_summary_var.set(
+            f"Профиль: {mc} · {loader}{extra}\n{install}"
+        )
+        self._refresh_build_icon()
 
     def _version_ids_for_current_filter(self) -> list[str]:
         if not self.versions:
@@ -1504,24 +1549,106 @@ class MinecraftLauncherApp:
         finally:
             self.root.destroy()
 
-    def _check_crash_prompt(self) -> None:
+    def _crash_key(self, crash: Path) -> str:
+        return f"{crash.resolve()}:{int(crash.stat().st_mtime)}"
+
+    def _refresh_crash_bar(self) -> None:
         crash = latest_crash_report(self._game_dir())
         if not crash or not crash.is_file():
+            self._pending_crash = None
+            self.crash_bar.grid_remove()
             return
-        key = f"{crash.resolve()}:{int(crash.stat().st_mtime)}"
+        key = self._crash_key(crash)
         if key == self.settings.last_seen_crash_key:
+            self._pending_crash = None
+            self.crash_bar.grid_remove()
             return
+        self._pending_crash = crash
+        self.crash_msg_var.set(f"Сбой игры: {crash.name}")
+        self.crash_bar.grid()
+
+    def _open_pending_crash(self) -> None:
+        crash = self._pending_crash or latest_crash_report(self._game_dir())
+        if not crash or not crash.is_file():
+            messagebox.showinfo("Краш", "Отчёт не найден.", parent=self.root)
+            return
+        try:
+            open_log_file(crash)
+        except OSError as exc:
+            messagebox.showerror("Ошибка", str(exc), parent=self.root)
+            return
+        self.settings.last_seen_crash_key = self._crash_key(crash)
+        self.settings.save(LAUNCHER_DIR)
+        self._pending_crash = None
+        self.crash_bar.grid_remove()
+
+    def _check_crash_prompt(self) -> None:
+        self._refresh_crash_bar()
+        if not self._pending_crash:
+            return
+        crash = self._pending_crash
         if messagebox.askyesno(
             "Crash-report",
-            f"Найден свежий отчёт об ошибке:\n{crash.name}\n\nОткрыть файл?",
+            f"Найден отчёт об ошибке:\n{crash.name}\n\nОткрыть файл?",
             parent=self.root,
         ):
-            try:
-                open_log_file(crash)
-            except OSError as exc:
-                messagebox.showerror("Ошибка", str(exc), parent=self.root)
-        self.settings.last_seen_crash_key = key
+            self._open_pending_crash()
+        else:
+            self.settings.last_seen_crash_key = self._crash_key(crash)
+            self.settings.save(LAUNCHER_DIR)
+            self._pending_crash = None
+            self.crash_bar.grid_remove()
+
+    def _show_changelog_if_needed(self) -> None:
+        if self.settings.last_seen_launcher_version == LAUNCHER_VERSION:
+            return
+        text = changelog_for_version(LAUNCHER_VERSION)
+        if text:
+            messagebox.showinfo("Что нового", text, parent=self.root)
+        self.settings.last_seen_launcher_version = LAUNCHER_VERSION
         self.settings.save(LAUNCHER_DIR)
+
+    def _refresh_build_icon(self) -> None:
+        if not self.current_build:
+            self.build_icon_label.configure(image="", text="")
+            return
+        try:
+            from PIL import Image, ImageTk
+
+            path = ensure_build_icon(self.current_build, LAUNCHER_DIR)
+            if not path.is_file():
+                self.build_icon_label.configure(image="", text="")
+                return
+            img = Image.open(path).resize((32, 32), Image.Resampling.LANCZOS)
+            self._build_icon_photo = ImageTk.PhotoImage(img, master=self.root)
+            self.build_icon_label.configure(image=self._build_icon_photo, text="")
+        except Exception:
+            self.build_icon_label.configure(image="", text="?")
+
+    def _export_partial(self, *, mods: bool = False, saves: bool = False) -> None:
+        if not self.current_build:
+            return
+        label = "mods" if mods else "миры"
+        path = filedialog.asksaveasfilename(
+            parent=self.root,
+            title=f"Экспорт {label}",
+            defaultextension=".zip",
+            initialfile=f"{self.current_build.name}-{label}.zip",
+            filetypes=[("ZIP", "*.zip")],
+        )
+        if not path:
+            return
+        try:
+            export_partial_zip(
+                self.current_build,
+                LAUNCHER_DIR,
+                Path(path),
+                include_mods=mods,
+                include_saves=saves,
+            )
+            messagebox.showinfo("Экспорт", f"Сохранено:\n{path}", parent=self.root)
+        except BackupError as exc:
+            messagebox.showerror("Экспорт", str(exc), parent=self.root)
 
     def _check_updates_async(self) -> None:
         def worker() -> UpdateInfo | None:

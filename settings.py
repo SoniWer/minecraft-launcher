@@ -21,6 +21,7 @@ class LauncherSettings:
     recent_builds: list[str] = field(default_factory=list)
     saved_usernames: list[str] = field(default_factory=list)
     last_seen_crash_key: str = ""
+    last_seen_launcher_version: str = ""
     show_game_log: bool = False
 
     @classmethod
@@ -44,6 +45,8 @@ class LauncherSettings:
                     kwargs[key] = int(val) if isinstance(val, (int, float)) else 0
                 elif key == "show_game_log":
                     kwargs[key] = bool(val)
+                elif key == "last_seen_launcher_version":
+                    kwargs[key] = str(val) if val else ""
                 else:
                     kwargs[key] = val
             return cls(**kwargs)

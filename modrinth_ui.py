@@ -5,6 +5,7 @@ from __future__ import annotations
 import concurrent.futures
 import threading
 import tkinter as tk
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -14,6 +15,8 @@ from theme import theme_for_child
 from ui_focus import install_no_autoselect
 from ui_layout import BTN_GAP, WINDOW_PAD, autosize_toplevel, tree_with_scrollbar
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
+from app_paths import launcher_dir
+from disk_check import check_disk_space, estimate_modpack_need_gb
 from modrinth import (
     CONTENT_FOLDERS,
     LOADER_IDS,
@@ -28,6 +31,8 @@ from modrinth import (
     is_modpack_installed,
     is_stable_version,
     list_installed_filenames,
+    modrinth_project_url,
+    pick_mrpack_file,
     pick_primary_file,
     project_is_installed,
     project_is_installed_modpack,
@@ -238,8 +243,14 @@ class ModrinthBrowser(tk.Toplevel):
         self.hint_label = ttk.Label(bottom, text="", style="Hint.TLabel")
         self.hint_label.grid(row=0, column=1, sticky="w", padx=(14, 14))
         self._update_type_hint()
+        ttk.Button(
+            bottom,
+            text="На Modrinth",
+            style="Tool.TButton",
+            command=self._open_project_in_browser,
+        ).grid(row=0, column=2, sticky="e", padx=(0, BTN_GAP))
         ttk.Button(bottom, text="Закрыть", style="Tool.TButton", command=self._close).grid(
-            row=0, column=2, sticky="e"
+            row=0, column=3, sticky="e"
         )
 
         install_no_autoselect(self.type_combo, self.type_var)
@@ -599,6 +610,19 @@ class ModrinthBrowser(tk.Toplevel):
             return None
         return self._hit_by_iid.get(selection[0])
 
+    def _open_project_in_browser(self) -> None:
+        hit = self._selected_hit()
+        if not hit:
+            messagebox.showwarning(
+                "Modrinth", "Выберите проект в списке.", parent=self
+            )
+            return
+        slug = str(hit.get("slug") or hit.get("project_id") or "")
+        url = modrinth_project_url(self._content_type(), slug)
+        if not url:
+            return
+        webbrowser.open(url)
+
     def _on_select(self, _event: object | None = None) -> None:
         hit = self._selected_hit()
         if not hit:
@@ -731,6 +755,18 @@ class ModrinthBrowser(tk.Toplevel):
         install_game_dir = self.minecraft_dir
 
         if project_type == "modpack":
+            need_gb = estimate_modpack_need_gb(version.get("files"))
+            check_path = self.minecraft_dir
+            if self.on_create_build_for_modpack:
+                check_path = launcher_dir() / "builds"
+            ok, disk_msg = check_disk_space(check_path, need_gb)
+            if not ok:
+                messagebox.showerror(
+                    "Мало места на диске",
+                    disk_msg + f"\n\nНужно примерно {need_gb:.1f} ГБ.",
+                    parent=self,
+                )
+                return
             if self.on_auto_backup:
                 self.on_auto_backup()
             if self.on_create_build_for_modpack:

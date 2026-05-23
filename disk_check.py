@@ -19,6 +19,26 @@ def format_disk_warning(path: Path, need_gb: float, free: float) -> str:
     )
 
 
+def estimate_modpack_need_gb(version_files: list[dict] | None = None) -> float:
+    """Оценка места под .mrpack и распаковку modpack."""
+    total_bytes = 0
+    for info in version_files or []:
+        try:
+            total_bytes += int(info.get("size") or 0)
+        except (TypeError, ValueError):
+            continue
+    if total_bytes <= 0:
+        return 4.0
+    return max(3.0, (total_bytes / (1024**3)) * 2.2 + 1.0)
+
+
+def check_disk_space(path: Path, need_gb: float) -> tuple[bool, str]:
+    free = free_gb(path)
+    if free >= need_gb:
+        return True, ""
+    return False, format_disk_warning(path, need_gb, free)
+
+
 def needs_download_warning(
     *,
     version_installed: bool,

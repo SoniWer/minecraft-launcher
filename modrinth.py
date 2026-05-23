@@ -26,6 +26,22 @@ def modrinth_user_agent() -> str:
 
 USER_AGENT = modrinth_user_agent()
 
+MODRINTH_PROJECT_SEGMENTS = {
+    "mod": "mod",
+    "modpack": "modpack",
+    "resourcepack": "resource-pack",
+    "shader": "shader",
+}
+
+
+def modrinth_project_url(project_type: str, slug: str) -> str:
+    slug = (slug or "").strip()
+    if not slug:
+        return ""
+    segment = MODRINTH_PROJECT_SEGMENTS.get(project_type, "mod")
+    return f"https://modrinth.com/{segment}/{slug}"
+
+
 CONTENT_FOLDERS = {
     "mod": "mods",
     "resourcepack": "resourcepacks",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -17,6 +18,7 @@ from modrinth import (
     ModrinthError,
     get_version,
     install_version_with_dependencies,
+    modrinth_project_url,
     scan_mod_updates,
 )
 
@@ -66,6 +68,8 @@ class ModManagerWindow(tk.Toplevel):
             ("Вкл.", self._enable_selected, "Убрать суффикс .disabled"),
             ("Выкл.", self._disable_selected, "Временно выключить мод"),
             ("Удалить", self._delete_selected, "Удалить файл мода с диска"),
+            ("Проверка", self._open_health_check, "Дубликаты и битые JAR"),
+            ("Modrinth", self._open_on_modrinth, "Страница мода в браузере"),
         )
         for text, cmd, tip in bar:
             btn = ttk.Button(toolbar, text=text, style="Tool.TButton", command=cmd)
@@ -94,6 +98,29 @@ class ModManagerWindow(tk.Toplevel):
         ttk.Button(actions, text="Закрыть", style="Tool.TButton", command=self.destroy).pack(
             side="right"
         )
+
+    def _open_health_check(self) -> None:
+        from mod_health_ui import ModHealthWindow
+
+        ModHealthWindow(self, mods_dir=self.mods_dir)
+
+    def _open_on_modrinth(self) -> None:
+        entry = self._selected_entry()
+        if not entry:
+            messagebox.showinfo("Modrinth", "Выберите мод в списке.", parent=self)
+            return
+        info = self._updates.get(entry["path"].name)
+        if not info or not info.project_id:
+            messagebox.showinfo(
+                "Modrinth",
+                "Сначала нажмите «Проверить», чтобы распознать мод на Modrinth.",
+                parent=self,
+            )
+            return
+        url = modrinth_project_url("mod", info.project_id)
+        if not url:
+            return
+        webbrowser.open(url)
 
     def _selected_entry(self) -> dict | None:
         selection = self.tree.selection()

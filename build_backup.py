@@ -39,6 +39,50 @@ def export_build_zip(build: Build, launcher_dir: Path, dest_zip: Path) -> Path:
     return dest_zip
 
 
+def export_partial_zip(
+    build: Build,
+    launcher_dir: Path,
+    dest_zip: Path,
+    *,
+    include_mods: bool = False,
+    include_saves: bool = False,
+) -> Path:
+    if not include_mods and not include_saves:
+        raise BackupError("Выберите mods/ или миры для экспорта.")
+
+    build.ensure_dirs(launcher_dir)
+    game = build.game_dir(launcher_dir)
+    dest_zip = dest_zip.resolve()
+    dest_zip.parent.mkdir(parents=True, exist_ok=True)
+
+    folders: list[str] = []
+    if include_mods:
+        folders.append("mods")
+    if include_saves:
+        folders.append("saves")
+
+    with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        profile = build.profile_path(launcher_dir)
+        if profile.exists():
+            zf.write(profile, f"backup/{PROFILE_NAME}")
+        for folder in folders:
+            root = game / folder
+            if not root.exists():
+                continue
+            for path in root.rglob("*"):
+                if path.is_file():
+                    rel = path.relative_to(game).as_posix()
+                    zf.write(path, f"backup/game/{rel}")
+        meta = {
+            "build_name": build.name,
+            "build_id": build.id,
+            "partial": folders,
+            "created": datetime.now().isoformat(timespec="seconds"),
+        }
+        zf.writestr("backup/backup_meta.json", json.dumps(meta, ensure_ascii=False, indent=2))
+    return dest_zip
+
+
 def import_build_zip(
     zip_path: Path,
     launcher_dir: Path,
