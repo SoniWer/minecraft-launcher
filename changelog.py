@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 _SECTION = re.compile(
@@ -13,6 +14,8 @@ _BULLET = re.compile(r"^-\s+(.+)$", re.MULTILINE)
 
 
 def _notes_path() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "RELEASE_NOTES.md"  # type: ignore[attr-defined]
     return Path(__file__).resolve().parent / ".github" / "RELEASE_NOTES.md"
 
 

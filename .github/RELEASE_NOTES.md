@@ -2,6 +2,10 @@
 
 Файл **MinecraftLauncher-vX.Y.Z.exe** — готовый лаунчер для Windows (Python не нужен).
 
+## Что нового в v1.5.3
+
+- Исправлен показ окна «Что нового» после обновления (текст из релизных заметок в EXE)
+
 ## Что нового в v1.5.2
 
 - Автообновление удаляет все старые `MinecraftLauncher-v*.exe` в папке лаунчера
@@ -38,7 +42,7 @@
 
 ## Установка
 
-1. Скачайте `MinecraftLauncher-v1.5.2.exe` из раздела **Assets** ниже.
+1. Скачайте `MinecraftLauncher-v1.5.3.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)

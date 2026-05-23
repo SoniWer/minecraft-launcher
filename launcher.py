@@ -1601,8 +1601,9 @@ class MinecraftLauncherApp:
         if self.settings.last_seen_launcher_version == LAUNCHER_VERSION:
             return
         text = changelog_for_version(LAUNCHER_VERSION)
-        if text:
-            messagebox.showinfo("Что нового", text, parent=self.root)
+        if not text:
+            return
+        messagebox.showinfo("Что нового", text, parent=self.root)
         self.settings.last_seen_launcher_version = LAUNCHER_VERSION
         self.settings.save(LAUNCHER_DIR)
 

@@ -6,7 +6,10 @@ from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH).resolve().parent
 
+_release_notes = root / ".github" / "RELEASE_NOTES.md"
 datas: list = []
+if _release_notes.is_file():
+    datas.append((str(_release_notes), "."))
 binaries: list = []
 icon_file = str(root / "launcher.ico") if (root / "launcher.ico").is_file() else None
 
