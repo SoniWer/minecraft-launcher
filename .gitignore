@@ -6,6 +6,9 @@ tools/
 settings.json
 curseforge.key
 launcher.log
+_launcher_update.ps1
+_launcher_update.bat
+*.download
 
 # EXE только в GitHub Releases
 MinecraftLauncher.exe

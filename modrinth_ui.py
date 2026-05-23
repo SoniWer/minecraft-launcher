@@ -140,7 +140,7 @@ class ModrinthBrowser(tk.Toplevel):
         filters.columnconfigure(5, weight=1)
 
         ttk.Label(filters, text="Тип", style="Form.TLabel").grid(row=0, column=0, sticky="e")
-        self.type_var = tk.StringVar(value="Моды")
+        self.type_var = tk.StringVar(value="Сборки (modpack)")
         self.type_combo = ttk.Combobox(
             filters,
             textvariable=self.type_var,
@@ -285,9 +285,12 @@ class ModrinthBrowser(tk.Toplevel):
         self.loader_filter_combo.configure(state="readonly")
 
     def _update_search_hint(self) -> None:
-        mc_version = self.get_mc_version() or "?"
-        hint = f"Версия MC: {mc_version} · ✓ = уже установлено"
         project_type = self._content_type()
+        if project_type == "modpack":
+            hint = "Сборки для всех версий Minecraft · ✓ = уже установлено"
+        else:
+            mc_version = self.get_mc_version() or "?"
+            hint = f"Версия MC: {mc_version} · ✓ = уже установлено"
         loader = self._api_loader()
         filter_label = self.loader_filter_var.get()
         if loader:
@@ -305,7 +308,7 @@ class ModrinthBrowser(tk.Toplevel):
 
     def _update_type_hint(self) -> None:
         if self._content_type() == "modpack":
-            text = "Создаётся новая сборка с именем modpack · стабильная по умолчанию"
+            text = "Выберите версию сборки в списке ниже (все версии Minecraft)"
         else:
             text = "По умолчанию — стабильная версия; бета — в списке вручную"
         if self._is_alive():
@@ -332,6 +335,9 @@ class ModrinthBrowser(tk.Toplevel):
         return mc_version
 
     def _load_popular(self) -> None:
+        if self._content_type() == "modpack":
+            self._search(reset=True)
+            return
         if self._require_mc_version():
             self._search(reset=True)
 
@@ -519,16 +525,20 @@ class ModrinthBrowser(tk.Toplevel):
             self.status_var.set(f"{base} · ✓ в списке: {installed_count}")
 
     def _search(self, *, reset: bool) -> None:
-        mc_version = self._require_mc_version()
-        if not mc_version:
-            return
+        project_type = self._content_type()
+        mc_version: str | None
+        if project_type == "modpack":
+            mc_version = None
+        else:
+            mc_version = self._require_mc_version()
+            if not mc_version:
+                return
 
         if reset:
             self._clear_results()
             self._search_offset = 0
 
         query = self.query_var.get().strip()
-        project_type = self._content_type()
         loader = self._api_loader()
         offset = self._search_offset
         generation = self._enrich_generation
@@ -628,9 +638,12 @@ class ModrinthBrowser(tk.Toplevel):
         if not hit:
             return
 
-        mc_version = self._require_mc_version()
-        if not mc_version:
-            return
+        project_type = self._content_type()
+        mc_version: str | None = None
+        if project_type != "modpack":
+            mc_version = self._require_mc_version()
+            if not mc_version:
+                return
 
         project_id = hit.get("project_id") or hit.get("slug")
         if not project_id:
@@ -643,7 +656,6 @@ class ModrinthBrowser(tk.Toplevel):
 
         def worker() -> None:
             try:
-                project_type = self._content_type()
                 versions = get_project_versions(
                     project_id,
                     mc_version=mc_version,
@@ -691,14 +703,19 @@ class ModrinthBrowser(tk.Toplevel):
             if is_stable_version(version):
                 stable_count += 1
             type_text = version_type_label(vtype)
-            labels.append(
-                f"{mark}{version.get('name', version.get('version_number', '?'))} "
-                f"({type_text})"
-            )
+            name = version.get("name", version.get("version_number", "?"))
+            if project_type == "modpack":
+                gvs = version.get("game_versions") or []
+                mc_text = ", ".join(gvs[:4]) if gvs else "?"
+                if len(gvs) > 4:
+                    mc_text += "…"
+                labels.append(f"{mark}{name} · MC {mc_text} ({type_text})")
+            else:
+                labels.append(f"{mark}{name} ({type_text})")
         try:
             self.version_combo["values"] = labels
             if labels:
-                default_idx = default_version_index(versions)
+                default_idx = 0 if project_type == "modpack" else default_version_index(versions)
                 if default_idx < 0:
                     default_idx = 0
                 self.version_combo.current(default_idx)
@@ -747,9 +764,10 @@ class ModrinthBrowser(tk.Toplevel):
             return
 
         project_type = self._content_type()
-        mc_version = self._require_mc_version()
-        if not mc_version:
-            return
+        if project_type != "modpack":
+            mc_version = self._require_mc_version()
+            if not mc_version:
+                return
 
         title = hit.get("title", "файл")
         install_game_dir = self.minecraft_dir

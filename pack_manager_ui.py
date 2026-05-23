@@ -32,13 +32,11 @@ class PackListWindow(tk.Toplevel):
         *,
         game_dir: Path,
         kind: PackKind,
-        modrinth_window_factory=None,
     ) -> None:
         super().__init__(parent)
         self.game_dir = game_dir
         self.kind = kind
         self.pack_dir = game_dir / kind.folder
-        self.modrinth_window_factory = modrinth_window_factory
 
         self.title(f"{kind.title} — {game_dir.name}")
 
@@ -62,14 +60,6 @@ class PackListWindow(tk.Toplevel):
             btn = ttk.Button(toolbar, text=text, style="Tool.TButton", command=cmd)
             btn.pack(side="left", padx=(0, 8))
             add_tooltip(btn, tip)
-
-        if self.kind.key == "mods" and self.modrinth_window_factory:
-            ttk.Button(
-                toolbar,
-                text="Modrinth",
-                style="Tool.TButton",
-                command=self.modrinth_window_factory,
-            ).pack(side="right")
 
         self.tree, _scroll = tree_with_scrollbar(
             body, columns=("name", "status"), show="headings"

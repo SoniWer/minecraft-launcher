@@ -45,7 +45,6 @@ from build_backup import (
     export_partial_zip,
     import_build_zip,
 )
-from build_icon import ensure_build_icon
 from changelog import changelog_for_version
 from install_status import format_install_status
 from drag_drop import enable_jar_drop
@@ -236,22 +235,19 @@ class MinecraftLauncherApp:
         form_label(tab_build, 0, "Имя")
         build_row = ttk.Frame(tab_build)
         form_field(build_row, 0)
-        build_row.columnconfigure(1, weight=1)
-        self._build_icon_photo = None
-        self.build_icon_label = tk.Label(build_row, width=32, height=32, bd=0)
-        self.build_icon_label.grid(row=0, column=0, padx=(0, BTN_GAP))
+        build_row.columnconfigure(0, weight=1)
         self.build_var = tk.StringVar()
         self.build_combo = ttk.Combobox(
             build_row, textvariable=self.build_var, state="readonly"
         )
-        self.build_combo.grid(row=0, column=1, sticky="ew", padx=(0, BTN_GAP))
+        self.build_combo.grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
         self.build_combo.bind("<<ComboboxSelected>>", self._on_build_selected)
         for col, (text, cmd) in enumerate(
             (("+", self._create_build), ("⧉", self._clone_build), ("−", self._delete_build)),
-            start=2,
+            start=1,
         ):
             ttk.Button(build_row, text=text, width=3, command=cmd).grid(
-                row=0, column=col, padx=(0 if col == 2 else BTN_GAP, 0)
+                row=0, column=col, padx=(0 if col == 1 else BTN_GAP, 0)
             )
 
         self.build_summary_var = tk.StringVar(value="")
@@ -718,7 +714,6 @@ class MinecraftLauncherApp:
         self.build_summary_var.set(
             f"Профиль: {mc} · {loader}{extra}\n{install}"
         )
-        self._refresh_build_icon()
 
     def _version_ids_for_current_filter(self) -> list[str]:
         if not self.versions:
@@ -1168,23 +1163,9 @@ class MinecraftLauncherApp:
                 parent=self.root,
             )
             return
-        from mods_ui import ModManagerWindow
+        from pack_manager_ui import PACK_MODS, PackListWindow
 
-        mc_version = self._resolved_mc_version()
-        if not mc_version:
-            messagebox.showwarning(
-                "Внимание",
-                "Выберите версию Minecraft (или сборку с версией) для работы с модами.",
-                parent=self.root,
-            )
-            return
-        ModManagerWindow(
-            self.root,
-            game_dir=self._game_dir(),
-            get_mc_version=self._resolved_mc_version,
-            get_loader_id=self._loader_id,
-            on_auto_backup=lambda: self._auto_backup("mods-update"),
-        )
+        PackListWindow(self.root, game_dir=self._game_dir(), kind=PACK_MODS)
 
     def _parse_ram_gb(self) -> int | None:
         raw = self.ram_var.get().strip().replace(",", ".")
@@ -1607,23 +1588,6 @@ class MinecraftLauncherApp:
             messagebox.showinfo("Что нового", text, parent=self.root)
         self.settings.last_seen_launcher_version = LAUNCHER_VERSION
         self.settings.save(LAUNCHER_DIR)
-
-    def _refresh_build_icon(self) -> None:
-        if not self.current_build:
-            self.build_icon_label.configure(image="", text="")
-            return
-        try:
-            from PIL import Image, ImageTk
-
-            path = ensure_build_icon(self.current_build, LAUNCHER_DIR)
-            if not path.is_file():
-                self.build_icon_label.configure(image="", text="")
-                return
-            img = Image.open(path).resize((32, 32), Image.Resampling.LANCZOS)
-            self._build_icon_photo = ImageTk.PhotoImage(img, master=self.root)
-            self.build_icon_label.configure(image=self._build_icon_photo, text="")
-        except Exception:
-            self.build_icon_label.configure(image="", text="?")
 
     def _export_partial(self, *, mods: bool = False, saves: bool = False) -> None:
         if not self.current_build:

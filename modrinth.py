@@ -255,16 +255,17 @@ def search_projects(
     *,
     query: str,
     project_type: str,
-    mc_version: str,
+    mc_version: str | None = None,
     loader: str | None = None,
     offset: int = 0,
     limit: int = 20,
 ) -> dict[str, Any]:
-    version_facets = [f"versions:{v}" for v in mc_version_facet_values(mc_version)]
-    facets: list[list[str]] = [
-        [f"project_type:{project_type}"],
-        version_facets,
-    ]
+    facets: list[list[str]] = [[f"project_type:{project_type}"]]
+    if mc_version and mc_version.strip():
+        version_facets = [
+            f"versions:{v}" for v in mc_version_facet_values(mc_version.strip())
+        ]
+        facets.append(version_facets)
     for group in search_loader_facets(project_type, loader):
         facets.append(group)
 
@@ -281,14 +282,32 @@ def search_projects(
 def get_project_versions(
     project_id: str,
     *,
-    mc_version: str,
+    mc_version: str | None = None,
     project_type: str = "mod",
     loader: str | None = None,
 ) -> list[dict[str, Any]]:
     path = f"/project/{quote(project_id, safe='')}/version"
     api_loader = resolve_loader_param(project_type, loader)
-    game_versions = mc_version_match_values(mc_version)
 
+    if project_type == "modpack" and not (mc_version or "").strip():
+        result = _request("GET", path)
+        versions = result if isinstance(result, list) else []
+        if api_loader:
+            versions = [
+                v
+                for v in versions
+                if api_loader in (v.get("loaders") or [])
+                or "minecraft" in (v.get("loaders") or [])
+                or not (v.get("loaders"))
+            ]
+        versions.sort(key=lambda v: str(v.get("date_published") or ""), reverse=True)
+        return versions
+
+    mc = (mc_version or "").strip()
+    if not mc:
+        return []
+
+    game_versions = mc_version_match_values(mc)
     params: dict[str, str] = {"game_versions": json.dumps(game_versions)}
     if api_loader:
         params["loaders"] = json.dumps([api_loader])
@@ -296,17 +315,17 @@ def get_project_versions(
     result = _request("GET", path, params=params)
     versions = result if isinstance(result, list) else []
     if versions:
-        return [v for v in versions if version_supports_mc(v, mc_version)]
+        return [v for v in versions if version_supports_mc(v, mc)]
 
-    # Запасной вариант: все версии и фильтр на клиенте
     fallback = _request("GET", path)
     all_versions = fallback if isinstance(fallback, list) else []
-    filtered = [v for v in all_versions if version_supports_mc(v, mc_version)]
+    filtered = [v for v in all_versions if version_supports_mc(v, mc)]
     if api_loader and project_type in ("mod", "modpack"):
         filtered = [
             v
             for v in filtered
-            if api_loader in (v.get("loaders") or []) or "minecraft" in (v.get("loaders") or [])
+            if api_loader in (v.get("loaders") or [])
+            or "minecraft" in (v.get("loaders") or [])
         ]
     return filtered
 
