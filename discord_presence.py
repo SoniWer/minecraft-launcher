@@ -13,12 +13,6 @@ _rpc: Any = None
 _connected = False
 _last_error = ""
 _app_id_cache = ""
-_public_key_cache = ""
-
-# Public Key приложения (не подставляется в pypresence — только для справки/сборки).
-DISCORD_PUBLIC_KEY = (
-    "b6fb7832f5c0e666d1eeb12a34e1164ee409d6e59e73fca37fcf2a52e4f1e9ff"
-)
 
 
 def _valid_application_id(value: str) -> str:
@@ -28,7 +22,19 @@ def _valid_application_id(value: str) -> str:
     return ""
 
 
-def _read_app_id_file(path: Path) -> str:
+def _app_id_from_json(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if isinstance(data, dict):
+        return _valid_application_id(str(data.get("application_id") or ""))
+    return ""
+
+
+def _app_id_from_txt(path: Path) -> str:
     if not path.is_file():
         return ""
     try:
@@ -38,108 +44,40 @@ def _read_app_id_file(path: Path) -> str:
     return _valid_application_id(line)
 
 
-def _read_app_json(path: Path) -> tuple[str, str]:
-    if not path.is_file():
-        return "", ""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return "", ""
-    if not isinstance(data, dict):
-        return "", ""
-    app_id = _valid_application_id(str(data.get("application_id") or ""))
-    public_key = str(data.get("public_key") or "").strip().lower()
-    if len(public_key) == 64 and all(c in "0123456789abcdef" for c in public_key):
-        return app_id, public_key
-    return app_id, ""
-
-
-def _credential_paths() -> list[Path]:
-    paths: list[Path] = []
-    if getattr(sys, "frozen", False):
-        base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        paths.extend(
-            [
-                base / "discord_app.json",
-                base / "discord_application_id.txt",
-                base / "discord_public_key.txt",
-            ]
-        )
-    root = Path(__file__).resolve().parent
-    paths.extend(
-        [
-            root / "discord_app.json",
-            root / "discord_application_id.txt",
-            root / "discord_public_key.txt",
-        ]
-    )
-    return paths
-
-
-def public_key() -> str:
-    global _public_key_cache
-    if _public_key_cache:
-        return _public_key_cache
-    for path in _credential_paths():
-        if path.name == "discord_app.json":
-            _, pk = _read_app_json(path)
-            if pk:
-                _public_key_cache = pk
-                return pk
-        if path.name == "discord_public_key.txt" and path.is_file():
-            try:
-                line = path.read_text(encoding="utf-8").strip().splitlines()[0].strip().lower()
-            except OSError:
-                continue
-            if len(line) == 64:
-                _public_key_cache = line
-                return line
-    _public_key_cache = DISCORD_PUBLIC_KEY
-    return _public_key_cache
-
-
 def application_id() -> str:
-    """Application ID (только цифры). Public Key для Rich Presence не подходит."""
     global _app_id_cache
     if _app_id_cache:
         return _app_id_cache
-
-    for path in _credential_paths():
-        if path.name == "discord_app.json":
-            app_id, _ = _read_app_json(path)
-            if app_id:
-                _app_id_cache = app_id
-                return app_id
-        if path.name == "discord_application_id.txt":
-            found = _read_app_id_file(path)
-            if found:
-                _app_id_cache = found
-                return found
 
     try:
         from version import DISCORD_APPLICATION_ID
 
         cid = _valid_application_id(DISCORD_APPLICATION_ID or "")
+        if cid:
+            _app_id_cache = cid
+            return cid
     except ImportError:
-        cid = ""
-    if cid:
-        _app_id_cache = cid
-    return _app_id_cache
+        pass
+
+    roots: list[Path] = []
+    if getattr(sys, "frozen", False):
+        roots.append(Path(sys._MEIPASS))  # type: ignore[attr-defined]
+    roots.append(Path(__file__).resolve().parent)
+
+    for root in roots:
+        cid = _app_id_from_json(root / "discord_app.json")
+        if cid:
+            _app_id_cache = cid
+            return cid
+        cid = _app_id_from_txt(root / "discord_application_id.txt")
+        if cid:
+            _app_id_cache = cid
+            return cid
+    return ""
 
 
 def is_configured() -> bool:
     return bool(application_id())
-
-
-def configuration_hint() -> str:
-    if is_configured():
-        return ""
-    if public_key() and not application_id():
-        return (
-            "В discord.com/developers у приложения скопируйте Application ID "
-            "(цифры), а не Public Key."
-        )
-    return "Application ID не вшит в эту сборку лаунчера."
 
 
 def last_connect_error() -> str:
@@ -147,12 +85,10 @@ def last_connect_error() -> str:
 
 
 def connect() -> bool:
-    """Подключается к запущенному Discord (IPC)."""
     global _rpc, _connected, _last_error
     cid = application_id()
     if not cid:
-        hint = configuration_hint()
-        _last_error = hint or "не задан Application ID"
+        _last_error = "не задан Application ID"
         return False
 
     with _lock:
@@ -174,7 +110,6 @@ def connect() -> bool:
                 return True
             except Exception as exc:
                 last_exc = exc
-                continue
 
         if last_exc is not None:
             msg = str(last_exc).strip() or last_exc.__class__.__name__

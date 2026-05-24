@@ -2,6 +2,10 @@
 
 Файл **MinecraftLauncher-vX.Y.Z.exe** — готовый лаунчер для Windows (Python не нужен).
 
+## Что нового в v1.6.3
+
+- Discord Rich Presence с вшитым Application ID — кнопка **Discord** работает без настроек
+
 ## Что нового в v1.6.2
 
 - Кнопка **Discord** на главном окне (без диалога при старте)
@@ -60,7 +64,7 @@
 
 ## Установка
 
-1. Скачайте `MinecraftLauncher-v1.6.2.exe` из раздела **Assets** ниже.
+1. Скачайте `MinecraftLauncher-v1.6.3.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)

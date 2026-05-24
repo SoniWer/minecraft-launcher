@@ -1,5 +1,0 @@
-# Application ID — только ЦИФРЫ (17–20 знаков), поле «ID приложения» в портале Discord.
-# Public Key (64 символа hex) — в discord_public_key.txt, для Rich Presence не используется.
-# Скопируйте в discord_application_id.txt одну строку с ID или задайте секрет DISCORD_APPLICATION_ID.
-
-1234567890123456789

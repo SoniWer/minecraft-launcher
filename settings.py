@@ -47,7 +47,7 @@ class LauncherSettings:
                 elif key in ("show_game_log", "discord_presence_enabled"):
                     kwargs[key] = bool(val)
                 elif key in ("discord_client_id", "discord_presence_consent"):
-                    pass
+                    continue
                 elif key == "last_seen_launcher_version":
                     kwargs[key] = str(val) if val else ""
                 else:

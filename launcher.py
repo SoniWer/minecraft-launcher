@@ -1768,10 +1768,9 @@ class MinecraftLauncherApp:
             return
 
         if not discord_presence.is_configured():
-            hint = discord_presence.configuration_hint()
             messagebox.showinfo(
                 "Discord",
-                "Статус в Discord пока недоступен в этой сборке.\n\n" + hint,
+                "Статус в Discord недоступен в этой сборке лаунчера.",
                 parent=self.root,
             )
             return
@@ -1784,14 +1783,11 @@ class MinecraftLauncherApp:
     def _connect_discord_presence(self, *, show_errors: bool = False) -> None:
         if not self.settings.discord_presence_enabled:
             return
-        if not self.settings.discord_presence_enabled:
-            return
         if not discord_presence.is_configured():
             if show_errors:
-                hint = discord_presence.configuration_hint()
                 messagebox.showinfo(
                     "Discord",
-                    "Статус в Discord недоступен.\n\n" + hint,
+                    "Статус в Discord недоступен в этой сборке лаунчера.",
                     parent=self.root,
                 )
             return

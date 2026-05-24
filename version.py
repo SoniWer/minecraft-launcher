@@ -1,10 +1,10 @@
 """Версия лаунчера (совпадает с тегом релиза на GitHub)."""
 
-LAUNCHER_VERSION = "1.6.2"
+LAUNCHER_VERSION = "1.6.3"
 GITHUB_REPO = "SoniWer/minecraft-launcher"
 
-# Запасной Application ID Discord (публичный). Обычно используется discord_application_id.txt.
-DISCORD_APPLICATION_ID = ""
+# Application ID Discord (публичный, не секрет). Rich Presence.
+DISCORD_APPLICATION_ID = "1508101710974029895"
 
 
 def launcher_exe_name(version: str | None = None) -> str:
