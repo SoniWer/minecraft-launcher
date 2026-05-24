@@ -22,6 +22,7 @@ LOCAL_MODULES: tuple[str, ...] = (
     "builds",
     "build_backup",
     "game_logs",
+    "game_log_collector",
     "game_process",
     "java_manager",
     "java_download",

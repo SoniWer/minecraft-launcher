@@ -55,7 +55,7 @@ hiddenimports = [
     "launcher_update",
     "launcher_log",
     "disk_check",
-    "minecraft_log_panel",
+    "game_log_collector",
     "build_dialog",
     "splash_screen",
     "ui_assets",

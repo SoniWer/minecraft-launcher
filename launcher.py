@@ -66,7 +66,7 @@ from java_manager import (
     resolve_java_executable,
 )
 from jvm_args import parse_jvm_args
-from minecraft_log_panel import MinecraftLogPanel
+from game_log_collector import GameLogCollector
 from build_dialog import NewBuildDialog
 from ram_advisor import ram_hint_text, recommend_ram_gb
 from app_paths import launcher_dir
@@ -196,6 +196,12 @@ class MinecraftLauncherApp:
             on_session_end=self._on_play_session_end,
         )
         self._game_tracker.bind_root(self.root)
+        self._game_log_collector = GameLogCollector(
+            self.root,
+            get_game_dir=self._game_dir,
+            get_shared_dir=lambda: Path(self.shared_dir),
+        )
+        self._logs_win: tk.Toplevel | None = None
         self._install_busy = False
         self._launch_busy = False
         self._discord_connecting = False
@@ -224,16 +230,11 @@ class MinecraftLauncherApp:
             return self.current_build.game_dir(LAUNCHER_DIR)
         return Path(self.shared_dir)
 
-    def _log_dirs(self) -> tuple[Path, Path]:
-        return self._game_dir(), Path(self.shared_dir)
-
     def _build_ui(self) -> None:
         shell = ttk.Frame(self.root, padding=SHELL_PAD)
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(0, weight=0)
-        shell.rowconfigure(1, weight=0)
-        shell.rowconfigure(2, weight=0)
 
         main = ttk.Frame(shell)
         main.grid(row=0, column=0, sticky="new")
@@ -454,24 +455,13 @@ class MinecraftLauncherApp:
         self.path_label.grid(row=lr, column=0, sticky="w", pady=(4, 0))
         self._update_path_label()
 
-        log_bar = ttk.Frame(shell)
-        log_bar.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        self.show_log_var = tk.BooleanVar(value=self.settings.show_game_log)
-        ttk.Checkbutton(
-            log_bar,
-            text="Показать лог Minecraft",
-            variable=self.show_log_var,
-            command=self._toggle_log_panel,
-        ).pack(side="left")
-
-        self.log_panel = MinecraftLogPanel(
-            shell, get_log_dirs=self._log_dirs, colors=self._colors
+        self.logs_btn = ttk.Button(
+            self.root,
+            text="Логи",
+            style="Tool.TButton",
+            command=self._open_logs_game_tab,
         )
-        if self.show_log_var.get():
-            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(4, 0))
-            self._ensure_window_height(700)
-        else:
-            self.log_panel.grid_remove()
+        self.logs_btn.place(relx=1.0, rely=1.0, anchor="se", x=-14, y=-10)
 
         for combo, var in (
             (self.build_combo, self.build_var),
@@ -500,8 +490,7 @@ class MinecraftLauncherApp:
 
     def _fit_window_to_content(self) -> None:
         self.root.update_idletasks()
-        need_h = 640 if not self.show_log_var.get() else 700
-        self._ensure_window_height(need_h)
+        self._ensure_window_height(640)
 
     def _setup_drag_drop(self) -> None:
         enable_jar_drop(
@@ -566,6 +555,7 @@ class MinecraftLauncherApp:
             self.current_build.play_time_seconds += seconds
             save_build(self.current_build, LAUNCHER_DIR)
             self._update_play_time_label()
+        self._game_log_collector.record_session_end(exit_code)
         self._sync_discord_presence(running=False)
         if exit_code not in (None, 0):
             self.status_var.set(f"Игра завершилась (код {exit_code})")
@@ -600,7 +590,7 @@ class MinecraftLauncherApp:
             (self.jvm_args_entry, "Дополнительные аргументы Java (-XX:…)"),
             (self.play_btn, "Запуск Minecraft; во время игры — красная кнопка «Стоп»"),
             (self.content_mb, "Моды, текстуры и шейдеры — вкл./выкл. как у модов"),
-            (self.log_panel, "Лог игры latest.log; «Копировать» — в буфер обмена"),
+            (self.logs_btn, "Лог игры, crash-reports и лог лаунчера"),
             (self.filter_combo, "Какие версии показывать в списке"),
             (self.utils_mb, "Экспорт, импорт, Java, тема, обновление"),
             (self.folders_mb, "Папки mods, миры, config и др."),
@@ -621,16 +611,8 @@ class MinecraftLauncherApp:
             text=f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
         )
 
-    def _toggle_log_panel(self) -> None:
-        show = self.show_log_var.get()
-        self.settings.show_game_log = show
-        self.settings.save(LAUNCHER_DIR)
-        if show:
-            self.log_panel.grid(row=2, column=0, sticky="ew", pady=(4, 0))
-            self._ensure_window_height(700)
-        else:
-            self.log_panel.grid_remove()
-            self._ensure_window_height(640)
+    def _open_logs_game_tab(self) -> None:
+        self._open_logs_and_crashes(initial_tab=1)
 
     def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
         mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
@@ -698,7 +680,6 @@ class MinecraftLauncherApp:
             command=self._check_duplicate_mods,
         )
         menu.add_command(label="Статистика", command=self._open_play_stats)
-        menu.add_command(label="Логи и сбои", command=self._open_logs_and_crashes)
         menu.add_separator()
         menu.add_command(label="Что нового", command=self._show_changelog_manual)
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
@@ -837,8 +818,6 @@ class MinecraftLauncherApp:
         self._update_play_time_label()
         self.settings.remember_build(build.name)
         self.settings.save(LAUNCHER_DIR)
-        if hasattr(self, "log_panel"):
-            self.log_panel.reset_source()
         self._update_content_menu_state()
 
     def _apply_username_combo(self) -> None:
@@ -1044,11 +1023,7 @@ class MinecraftLauncherApp:
         self._update_ram_hint()
 
     def _on_game_running_changed(self, running: bool) -> None:
-        if hasattr(self, "log_panel"):
-            if running:
-                self.log_panel.begin_game_session()
-            else:
-                self.log_panel.set_fast_poll(False)
+        self._game_log_collector.set_game_running(running)
         self._update_play_button(running)
         self._sync_discord_presence(running=running)
         if running:
@@ -1101,7 +1076,6 @@ class MinecraftLauncherApp:
         self.settings.dark_theme = not self.settings.dark_theme
         self.settings.save(LAUNCHER_DIR)
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
-        style_text_widget(self.log_panel.text, self._colors)
         if hasattr(self, "_launch_status_frame"):
             self._launch_status_frame.configure(bg=self._colors.bg)
             self._launch_status_label.configure(
@@ -1736,6 +1710,7 @@ class MinecraftLauncherApp:
         self._discord_connect_token += 1
         self._discord_connecting = False
         try:
+            self._game_log_collector.destroy()
             discord_presence.shutdown()
             self._save_current_build()
             self._save_window_geometry()
@@ -1743,13 +1718,32 @@ class MinecraftLauncherApp:
         finally:
             self.root.destroy()
 
-    def _open_logs_and_crashes(self, *, initial_tab: int = 0) -> None:
+    def _open_logs_and_crashes(self, *, initial_tab: int = 1) -> None:
         from crash_reports_ui import LogsAndCrashesWindow
 
-        LogsAndCrashesWindow(
+        win = self._logs_win
+        if win is not None:
+            try:
+                if win.winfo_exists():
+                    win.lift()
+                    win.focus_force()
+                    if initial_tab == LogsAndCrashesWindow.GAME_TAB:
+                        win.focus_game_tab()
+                    else:
+                        win.notebook.select(initial_tab)
+                        if initial_tab == 0:
+                            win._reload_crashes()
+                        elif initial_tab == 2:
+                            win._reload_launcher_log()
+                    return
+            except tk.TclError:
+                pass
+
+        self._logs_win = LogsAndCrashesWindow(
             self.root,
             get_game_dir=self._game_dir,
             get_shared_dir=lambda: Path(self.shared_dir),
+            log_collector=self._game_log_collector,
             initial_tab=initial_tab,
         )
 

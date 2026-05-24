@@ -61,13 +61,16 @@ class GameProcessTracker:
                 exit_code = proc.poll()
             except Exception:
                 exit_code = None
-        if started is not None and self._on_session_end is not None:
-            elapsed = max(0, int(time.monotonic() - started))
-            if elapsed > 0:
-                try:
-                    self._on_session_end(elapsed, exit_code)
-                except TypeError:
-                    self._on_session_end(elapsed)
+        if self._on_session_end is not None:
+            elapsed = (
+                max(0, int(time.monotonic() - started))
+                if started is not None
+                else 0
+            )
+            try:
+                self._on_session_end(elapsed, exit_code)
+            except TypeError:
+                self._on_session_end(elapsed)
 
     def _schedule_poll(self) -> None:
         if self._root is None:
