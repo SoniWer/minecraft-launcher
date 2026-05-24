@@ -25,3 +25,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+_patch_*.py
+_polish.py
+_fix_*.py
+_vf_*.png
+_video_frame_*.png

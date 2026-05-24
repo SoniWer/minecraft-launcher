@@ -240,7 +240,6 @@ class MinecraftLauncherApp:
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(0, weight=0)
-        shell.rowconfigure(1, weight=0)
 
         main = ttk.Frame(shell)
         main.grid(row=0, column=0, sticky="new")
@@ -481,15 +480,21 @@ class MinecraftLauncherApp:
         )
         self.path_label.grid(row=0, column=0, sticky="ew")
         self._update_path_label()
+        lr += 1
 
-        foot = ttk.Frame(shell)
-        foot.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        foot.columnconfigure(0, weight=1)
+        ttk.Separator(launch, orient="horizontal").grid(
+            row=lr, column=0, sticky="ew", pady=(10, 6)
+        )
+        lr += 1
+        logs_row = ttk.Frame(launch)
+        logs_row.grid(row=lr, column=0, sticky="ew")
+        logs_row.columnconfigure(0, weight=1)
         self.logs_btn = ttk.Button(
-            foot,
-            text="Логи",
+            logs_row,
+            text="Логи и сбои",
             style="Tool.TButton",
             command=self._open_logs_game_tab,
+            width=14,
         )
         self.logs_btn.grid(row=0, column=1, sticky="e")
 
@@ -1854,7 +1859,7 @@ class MinecraftLauncherApp:
                 label = "Discord ●"
             else:
                 label = "Discord"
-            self.discord_btn.configure(text=f"{label:<18}"[:18])
+            self.discord_btn.configure(text=label)
         except tk.TclError:
             pass
 
