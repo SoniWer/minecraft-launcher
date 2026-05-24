@@ -2,6 +2,10 @@
 
 Файл **MinecraftLauncher-vX.Y.Z.exe** — готовый лаунчер для Windows (Python не нужен).
 
+## Что нового в v1.6.4
+
+- Discord: таймаут подключения, отмена кнопкой, без зависания и краша при закрытии лаунчера
+
 ## Что нового в v1.6.3
 
 - Discord Rich Presence с вшитым Application ID — кнопка **Discord** работает без настроек
@@ -64,7 +68,7 @@
 
 ## Установка
 
-1. Скачайте `MinecraftLauncher-v1.6.3.exe` из раздела **Assets** ниже.
+1. Скачайте `MinecraftLauncher-v1.6.4.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)

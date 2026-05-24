@@ -195,6 +195,8 @@ class MinecraftLauncherApp:
         self._game_tracker.bind_root(self.root)
         self._install_busy = False
         self._launch_busy = False
+        self._discord_connecting = False
+        self._discord_connect_token = 0
 
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
         self._build_ui()
@@ -1616,8 +1618,10 @@ class MinecraftLauncherApp:
             self.settings.window_height = h
 
     def _on_close(self) -> None:
+        self._discord_connect_token += 1
+        self._discord_connecting = False
         try:
-            discord_presence.disconnect()
+            discord_presence.shutdown()
             self._save_current_build()
             self._save_window_geometry()
             self.settings.save(LAUNCHER_DIR)
@@ -1751,14 +1755,27 @@ class MinecraftLauncherApp:
     def _update_discord_button(self) -> None:
         if not hasattr(self, "discord_btn"):
             return
-        if discord_presence.is_connected():
-            self.discord_btn.configure(text="Discord ●")
-        elif self.settings.discord_presence_enabled:
-            self.discord_btn.configure(text="Discord …")
-        else:
-            self.discord_btn.configure(text="Discord")
+        try:
+            if self._discord_connecting:
+                self.discord_btn.configure(text="Отмена Discord")
+            elif discord_presence.is_connected():
+                self.discord_btn.configure(text="Discord ●")
+            else:
+                self.discord_btn.configure(text="Discord")
+        except tk.TclError:
+            pass
 
     def _on_discord_button(self) -> None:
+        if self._discord_connecting:
+            self._discord_connect_token += 1
+            self._discord_connecting = False
+            discord_presence.cancel_connect()
+            self.settings.discord_presence_enabled = False
+            self.settings.save(LAUNCHER_DIR)
+            self._update_discord_button()
+            self.status_var.set("Подключение к Discord отменено")
+            return
+
         if discord_presence.is_connected():
             discord_presence.disconnect()
             self.settings.discord_presence_enabled = False
@@ -1792,19 +1809,34 @@ class MinecraftLauncherApp:
                 )
             return
 
+        token = self._discord_connect_token + 1
+        self._discord_connect_token = token
+        self._discord_connecting = True
+        self._update_discord_button()
+
         def on_done(ok: bool) -> None:
             def apply() -> None:
+                if token != self._discord_connect_token:
+                    return
+                try:
+                    if not self.root.winfo_exists():
+                        return
+                except tk.TclError:
+                    return
+
+                self._discord_connecting = False
                 self._update_discord_button()
                 if ok:
                     discord_presence.set_idle(version=LAUNCHER_VERSION)
                     log_info("Discord Rich Presence connected")
                     self.status_var.set("Discord подключён")
                     return
+
                 self.settings.discord_presence_enabled = False
                 self.settings.save(LAUNCHER_DIR)
                 err = discord_presence.last_connect_error()
                 log_info(f"Discord Rich Presence: {err}")
-                if show_errors:
+                if show_errors and err != "отменено":
                     messagebox.showwarning(
                         "Discord",
                         "Не удалось подключиться к Discord.\n\n"
@@ -1813,9 +1845,15 @@ class MinecraftLauncherApp:
                         "«Показывать текущую игру в статусе».",
                         parent=self.root,
                     )
-                self.status_var.set("Discord не подключён")
+                if err == "отменено":
+                    self.status_var.set("Подключение к Discord отменено")
+                else:
+                    self.status_var.set("Discord не подключён")
 
-            self.root.after(0, apply)
+            try:
+                self.root.after(0, apply)
+            except tk.TclError:
+                pass
 
         discord_presence.connect_async(on_done=on_done)
 
