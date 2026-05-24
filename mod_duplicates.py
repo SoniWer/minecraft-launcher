@@ -54,10 +54,7 @@ def _list_mod_jars(mods_dir: Path) -> list[Path]:
 
 
 def find_duplicate_mods(mods_dir: Path) -> list[ModDuplicateGroup]:
-    """
-    Группы дубликатов: один project_id Modrinth, один mod id из fabric/quilt,
-    или совпадающее имя без суффикса версии.
-    """
+    """Группы дубликатов: один project_id Modrinth или один mod id из fabric/quilt."""
     jars = _list_mod_jars(mods_dir)
     if len(jars) < 2:
         return []
@@ -104,24 +101,5 @@ def find_duplicate_mods(mods_dir: Path) -> list[ModDuplicateGroup]:
         if len(unique) < 2:
             continue
         groups.append(ModDuplicateGroup(label=f"Mod id: {mod_id}", paths=unique))
-        seen_paths.update(unique)
-
-    def stem_key(name: str) -> str:
-        base = name.lower().removesuffix(".jar")
-        base = re.sub(r"[-_]?(\d+\.){1,3}\d+.*$", "", base)
-        base = re.sub(r"[-_]?(v?\d+(\.\d+)*)$", "", base, flags=re.IGNORECASE)
-        return base.strip("-_") or name.lower()
-
-    by_stem: dict[str, list[Path]] = {}
-    for jar in jars:
-        if jar in seen_paths:
-            continue
-        by_stem.setdefault(stem_key(jar.name), []).append(jar)
-
-    for stem, paths in sorted(by_stem.items()):
-        unique = tuple(sorted(set(paths), key=lambda p: p.name.lower()))
-        if len(unique) < 2:
-            continue
-        groups.append(ModDuplicateGroup(label=f"Похожие имена: {stem}", paths=unique))
 
     return groups

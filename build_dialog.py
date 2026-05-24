@@ -40,7 +40,6 @@ class NewBuildDialog(tk.Toplevel):
         self.on_created = on_created
         self.title("Новая сборка")
         self.grab_set()
-        self.transient(parent)
 
         body = ttk.Frame(self, padding=DIALOG_PAD)
         body.pack(fill="both", expand=True)

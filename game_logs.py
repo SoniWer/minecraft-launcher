@@ -84,6 +84,51 @@ def read_log_incremental(
             return "", position, str(exc)
 
 
+_FATAL_MARKERS = (
+    "fatal error",
+    "game crashed",
+    "crash report",
+    "exception in thread",
+    "fabric-loader",
+    "modlauncher",
+    "mixin apply",
+    "process exited with code",
+)
+
+
+def log_issue_key(path: Path) -> str:
+    try:
+        return f"log:{path.resolve()}:{int(path.stat().st_mtime)}"
+    except OSError:
+        return f"log:{path}"
+
+
+def log_has_fatal_tail(path: Path, *, tail_bytes: int = 48_000) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        size = path.stat().st_size
+        with open(path, "rb") as handle:
+            handle.seek(max(0, size - tail_bytes))
+            raw = handle.read()
+        text = raw.decode("utf-8", errors="replace").lower()
+    except OSError:
+        return False
+    return any(marker in text for marker in _FATAL_MARKERS)
+
+
+def read_log_tail(path: Path, *, max_bytes: int = 96_000) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        size = path.stat().st_size
+        with open(path, "rb") as handle:
+            handle.seek(max(0, size - max_bytes))
+            return handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
 def latest_crash_report(game_dir: Path) -> Path | None:
     reports = list_crash_reports(game_dir)
     if not reports:

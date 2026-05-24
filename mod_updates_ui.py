@@ -15,7 +15,7 @@ from modrinth import (
     scan_mod_updates,
 )
 from theme import theme_for_child
-from ui_layout import autosize_toplevel, setup_toplevel_window, toplevel_shell, tree_with_scrollbar
+from ui_layout import autosize_toplevel, toplevel_shell, tree_with_scrollbar
 
 
 class ModUpdatesWindow(tk.Toplevel):
@@ -43,10 +43,7 @@ class ModUpdatesWindow(tk.Toplevel):
         self.title("Обновление модов (Modrinth)")
         self._build_ui()
         autosize_toplevel(self, min_width=640, min_height=400)
-        setup_toplevel_window(self, min_width=640, min_height=400)
-        theme_for_child(self, parent)
-        self.transient(parent)
-        self.grab_set()
+        theme_for_child(self, parent, min_width=640, min_height=400)
         self.after(100, self._scan)
 
     def _build_ui(self) -> None:

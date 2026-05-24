@@ -54,7 +54,12 @@ from install_status import format_install_status
 from drag_drop import enable_jar_drop
 from play_time import format_play_time
 from version_sort import sort_with_favorites
-from game_logs import latest_crash_report, open_file as open_log_file
+from game_logs import (
+    latest_crash_report,
+    log_has_fatal_tail,
+    log_issue_key,
+    resolve_log_file,
+)
 from game_process import GameProcessTracker
 from java_manager import (
     JavaInstall,
@@ -208,7 +213,6 @@ class MinecraftLauncherApp:
         self._load_java_installs_async()
         self._load_versions_async()
         self._apply_username_combo()
-        self._pending_crash: Path | None = None
         self.root.after(400, self._check_crash_prompt)
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
@@ -440,44 +444,16 @@ class MinecraftLauncherApp:
         )
         lr += 1
 
-        self.crash_bar = ttk.Frame(launch)
-        self.crash_bar.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
-        self.crash_bar.columnconfigure(0, weight=1)
-        self.crash_msg_var = tk.StringVar(value="")
-        ttk.Label(
-            self.crash_bar, textvariable=self.crash_msg_var, style="Hint.TLabel", wraplength=260
-        ).grid(row=0, column=0, sticky="w")
-        ttk.Button(
-            self.crash_bar,
-            text="Открыть",
-            style="Tool.TButton",
-            command=self._open_pending_crash,
-        ).grid(row=0, column=1, padx=(8, 0))
-        ttk.Button(
-            self.crash_bar,
-            text="Все краши",
-            style="Tool.TButton",
-            command=self._open_crash_reports,
-        ).grid(row=0, column=2, padx=(8, 0))
-        self.crash_bar.grid_remove()
-        lr += 1
-
         menu_row = ttk.Frame(launch)
         menu_row.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
-        for col in range(4):
+        for col in range(3):
             menu_row.columnconfigure(col, weight=1, uniform="menu")
         self.content_mb = self._create_content_menubutton(menu_row)
         self.content_mb.grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
         self.utils_mb = self._create_utils_menubutton(menu_row)
         self.utils_mb.grid(row=0, column=1, sticky="ew", padx=(0, BTN_GAP))
         self.folders_mb = self._create_folders_menubutton(menu_row)
-        self.folders_mb.grid(row=0, column=2, sticky="ew", padx=(0, BTN_GAP))
-        ttk.Button(
-            menu_row,
-            text="Краши",
-            style="Tool.TButton",
-            command=self._open_crash_reports,
-        ).grid(row=0, column=3, sticky="ew")
+        self.folders_mb.grid(row=0, column=2, sticky="ew")
         lr += 1
 
         self.path_label = ttk.Label(launch, text="", style="Hint.TLabel", wraplength=260)
@@ -597,7 +573,7 @@ class MinecraftLauncherApp:
             save_build(self.current_build, LAUNCHER_DIR)
             self._update_play_time_label()
         self._sync_discord_presence(running=False)
-        self.root.after(400, self._refresh_crash_bar)
+        self.root.after(500, self._check_crash_prompt)
         if exit_code not in (None, 0):
             self.status_var.set(f"Игра завершилась (код {exit_code})")
 
@@ -729,7 +705,7 @@ class MinecraftLauncherApp:
             command=self._check_duplicate_mods,
         )
         menu.add_command(label="Статистика", command=self._open_play_stats)
-        menu.add_command(label="Отчёты о сбоях", command=self._open_crash_reports)
+        menu.add_command(label="Логи и сбои", command=self._open_logs_and_crashes)
         menu.add_separator()
         menu.add_command(label="Что нового", command=self._show_changelog_manual)
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
@@ -1774,52 +1750,50 @@ class MinecraftLauncherApp:
     def _crash_key(self, crash: Path) -> str:
         return f"{crash.resolve()}:{int(crash.stat().st_mtime)}"
 
-    def _refresh_crash_bar(self) -> None:
-        crash = latest_crash_report(self._game_dir())
-        if not crash or not crash.is_file():
-            self._pending_crash = None
-            self.crash_bar.grid_remove()
-            return
-        key = self._crash_key(crash)
-        if key == self.settings.last_seen_crash_key:
-            self._pending_crash = None
-            self.crash_bar.grid_remove()
-            return
-        self._pending_crash = crash
-        self.crash_msg_var.set(f"Сбой игры: {crash.name}")
-        self.crash_bar.grid()
+    def _new_issue_key(self) -> tuple[str, int] | None:
+        """Ключ и вкладка (0 crash, 1 лог игры) для ещё не показанного сбоя."""
+        game_dir = self._game_dir()
+        crash = latest_crash_report(game_dir)
+        if crash and crash.is_file():
+            key = self._crash_key(crash)
+            if key != self.settings.last_seen_crash_key:
+                return key, 0
 
-    def _open_crash_reports(self) -> None:
-        from crash_reports_ui import CrashReportsWindow
+        log_path, _hint = resolve_log_file(game_dir, Path(self.shared_dir))
+        if log_path and log_path.is_file() and log_has_fatal_tail(log_path):
+            key = log_issue_key(log_path)
+            if key != self.settings.last_seen_crash_key:
+                return key, 1
+        return None
 
-        CrashReportsWindow(self.root, get_game_dir=self._game_dir)
+    def _open_logs_and_crashes(self, *, initial_tab: int = 0) -> None:
+        from crash_reports_ui import LogsAndCrashesWindow
 
-    def _open_pending_crash(self) -> None:
-        crash = self._pending_crash or latest_crash_report(self._game_dir())
-        if not crash or not crash.is_file():
-            self._open_crash_reports()
-            return
-        try:
-            open_log_file(crash)
-        except OSError as exc:
-            messagebox.showerror("Ошибка", str(exc), parent=self.root)
+        LogsAndCrashesWindow(
+            self.root,
+            get_game_dir=self._game_dir,
+            get_shared_dir=lambda: Path(self.shared_dir),
+            initial_tab=initial_tab,
+        )
 
     def _check_crash_prompt(self) -> None:
-        self._refresh_crash_bar()
-        if not self._pending_crash:
+        found = self._new_issue_key()
+        if not found:
             return
-        crash = self._pending_crash
+        key, tab = found
+        label = (
+            "Найден crash-report Minecraft."
+            if tab == 0
+            else "В логе игры есть ошибка (загрузчик / моды / запуск)."
+        )
         if messagebox.askyesno(
-            "Crash-report",
-            f"Найден отчёт об ошибке:\n{crash.name}\n\nОткрыть файл?",
+            "Сбой",
+            f"{label}\n\nОткрыть «Логи и сбои»?",
             parent=self.root,
         ):
-            self._open_pending_crash()
-        else:
-            self.settings.last_seen_crash_key = self._crash_key(crash)
-            self.settings.save(LAUNCHER_DIR)
-            self._pending_crash = None
-            self.crash_bar.grid_remove()
+            self._open_logs_and_crashes(initial_tab=tab)
+        self.settings.last_seen_crash_key = key
+        self.settings.save(LAUNCHER_DIR)
 
     def _show_changelog_if_needed(self) -> None:
         if self.settings.last_seen_launcher_version == LAUNCHER_VERSION:

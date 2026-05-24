@@ -80,10 +80,20 @@ def apply_theme(root: tk.Misc, *, dark: bool) -> ThemeColors:
     return colors
 
 
-def theme_for_child(window: tk.Toplevel, parent: tk.Misc) -> ThemeColors:
-    """Согласовать дочернее окно с темой родителя."""
+def theme_for_child(
+    window: tk.Toplevel,
+    parent: tk.Misc,
+    *,
+    min_width: int = 520,
+    min_height: int = 360,
+) -> ThemeColors:
+    """Согласовать дочернее окно с темой родителя и стандартными кнопками окна."""
+    from ui_layout import setup_toplevel_window
+
     dark = getattr(parent, "_launcher_dark", True)
-    return apply_theme(window, dark=dark)
+    colors = apply_theme(window, dark=dark)
+    setup_toplevel_window(window, min_width=min_width, min_height=min_height)
+    return colors
 
 
 def style_canvas(canvas: tk.Canvas, colors: ThemeColors) -> None:

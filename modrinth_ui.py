@@ -13,13 +13,7 @@ from typing import Any
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
-from ui_layout import (
-    BTN_GAP,
-    WINDOW_PAD,
-    autosize_toplevel,
-    setup_toplevel_window,
-    tree_with_scrollbar,
-)
+from ui_layout import BTN_GAP, WINDOW_PAD, autosize_toplevel, tree_with_scrollbar
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from app_paths import launcher_dir
 from disk_check import check_disk_space, estimate_modpack_need_gb
@@ -101,11 +95,8 @@ class ModrinthBrowser(tk.Toplevel):
 
         self._build_ui()
         autosize_toplevel(self, min_width=760, min_height=480)
-        setup_toplevel_window(self, min_width=760, min_height=480)
         self._update_loader_filter_state()
-        theme_for_child(self, parent)
-        self.transient(parent)
-        self.grab_set()
+        theme_for_child(self, parent, min_width=760, min_height=480)
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(150, self._load_popular)
 
@@ -847,6 +838,7 @@ class ModrinthBrowser(tk.Toplevel):
                         version,
                         game_dir=install_game_dir,
                         shared_dir=self.shared_dir,
+                        launcher_dir=launcher_dir(),
                         on_progress=progress,
                         on_status=status,
                     )

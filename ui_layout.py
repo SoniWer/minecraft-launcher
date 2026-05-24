@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 from tkinter import ttk
 
@@ -162,9 +163,13 @@ def setup_toplevel_window(
     min_height: int = 360,
 ) -> None:
     """Стандартное окно: можно менять размер, свернуть и развернуть на весь экран."""
+    if not isinstance(window, (tk.Tk, tk.Toplevel)):
+        return
     try:
         window.resizable(True, True)
         window.minsize(min_width, min_height)
+        if sys.platform == "win32":
+            window.attributes("-toolwindow", False)
     except tk.TclError:
         pass
 

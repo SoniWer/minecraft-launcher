@@ -9,7 +9,7 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from tooltips import add_tooltip
-from ui_layout import autosize_toplevel, setup_toplevel_window, toplevel_shell, tree_with_scrollbar
+from ui_layout import autosize_toplevel, toplevel_shell, tree_with_scrollbar
 
 
 @dataclass(frozen=True)
@@ -43,10 +43,7 @@ class PackListWindow(tk.Toplevel):
         self._entries: list[dict] = []
         self._build_ui()
         autosize_toplevel(self, min_width=560, min_height=360)
-        setup_toplevel_window(self, min_width=560, min_height=360)
-        theme_for_child(self, parent)
-        self.transient(parent)
-        self.grab_set()
+        theme_for_child(self, parent, min_width=560, min_height=360)
         self._reload_list()
 
     def _build_ui(self) -> None:

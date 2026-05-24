@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -14,6 +16,7 @@ import requests
 MODRINTH_API = "https://api.modrinth.com/v2"
 _HTTP_SESSION: requests.Session | None = None
 _DOWNLOAD_CHUNK = 262_144
+_DOWNLOAD_WORKERS = 8
 
 
 def modrinth_user_agent() -> str:
@@ -648,6 +651,12 @@ class InstallResult:
         self.filename = filename
 
 
+def _global_mrpack_path(launcher_dir: Path, filename: str) -> Path:
+    folder = launcher_dir / ".launcher" / "mrpack_cache"
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder / filename
+
+
 def install_version_with_dependencies(
     version: dict[str, Any],
     *,
@@ -666,6 +675,8 @@ def install_version_with_dependencies(
         install_dependencies=install_deps,
     )
     results: list[InstallResult] = []
+    to_fetch: list[tuple[dict[str, Any], Path, str, str]] = []
+
     for item in queue:
         file_info = pick_primary_file(item)
         name = file_info["filename"] if file_info else item.get("name", "?")
@@ -674,27 +685,36 @@ def install_version_with_dependencies(
         dest = version_dest_path(
             item, minecraft_dir=minecraft_dir, project_type=project_type
         )
-        if dest and dest.exists():
+        if not dest:
+            continue
+        if dest.exists():
             if on_status:
                 on_status(f"Уже установлено: {name}")
             results.append(
                 InstallResult(dest, project_id, skipped=True, filename=name)
             )
             continue
+        to_fetch.append((item, dest, name, project_id))
 
+    if to_fetch:
         if on_status:
-            on_status(f"Скачивание: {name}")
-        path, _skipped = install_version(
-            item,
-            minecraft_dir=minecraft_dir,
-            project_type=project_type,
-            on_progress=on_progress,
-            skip_existing=True,
-        )
-        if path:
-            results.append(
-                InstallResult(path, project_id, skipped=False, filename=name)
-            )
+            on_status(f"Скачивание {len(to_fetch)} файл(ов)…")
+
+        def fetch_one(
+            payload: tuple[dict[str, Any], Path, str, str],
+        ) -> InstallResult:
+            item, dest, name, project_id = payload
+            file_info = pick_primary_file(item)
+            if not file_info:
+                raise ModrinthError(f"Нет файла для {name}")
+            download_file(file_info["url"], dest, on_progress=None)
+            return InstallResult(dest, project_id, skipped=False, filename=name)
+
+        workers = min(_DOWNLOAD_WORKERS, len(to_fetch))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(fetch_one, row) for row in to_fetch]
+            for future in as_completed(futures):
+                results.append(future.result())
 
     if not results:
         main_dest = version_dest_path(
@@ -845,6 +865,7 @@ def install_modpack_version(
     *,
     game_dir: Path,
     shared_dir: Path,
+    launcher_dir: Path | None = None,
     on_progress: Callable[[int, int | None], None] | None = None,
     on_status: Callable[[str], None] | None = None,
 ) -> ModpackInstallResult:
@@ -860,6 +881,9 @@ def install_modpack_version(
     cache_dir = game_dir / ".launcher" / "mrpacks"
     cache_dir.mkdir(parents=True, exist_ok=True)
     mrpack_path = cache_dir / filename
+    global_mrpack: Path | None = None
+    if launcher_dir is not None:
+        global_mrpack = _global_mrpack_path(launcher_dir, filename)
 
     if is_modpack_installed(game_dir, project_id, version_id) and mrpack_path.exists():
         profile = parse_mrpack_profile(mrpack_path)
@@ -875,12 +899,24 @@ def install_modpack_version(
         )
 
     if not mrpack_path.exists():
-        if on_status:
-            on_status(f"Скачивание: {filename}")
-        download_file(file_info["url"], mrpack_path, on_progress=on_progress)
+        if global_mrpack and global_mrpack.is_file():
+            if on_status:
+                on_status(f"Копирование из кэша: {filename}")
+            shutil.copy2(global_mrpack, mrpack_path)
+        else:
+            if on_status:
+                on_status(f"Скачивание: {filename}")
+            download_file(file_info["url"], mrpack_path, on_progress=on_progress)
+            if global_mrpack:
+                try:
+                    shutil.copy2(mrpack_path, global_mrpack)
+                except OSError:
+                    pass
 
     if on_status:
-        on_status(f"Установка сборки: {filename}")
+        on_status(
+            f"Установка сборки (может занять несколько минут): {filename}"
+        )
 
     progress_state = {"max": 100, "value": 0}
 
