@@ -88,7 +88,7 @@ from ui_layout import (
     app_header,
     center_toplevel,
     ellipsize,
-    fixed_frame,
+    reserve_grid_row,
     form_field,
     form_hint,
     form_label,
@@ -385,20 +385,16 @@ class MinecraftLauncherApp:
         self._last_launch_status = ""
 
         self.status_var = tk.StringVar(value="Загрузка...")
-        self._launch_status_frame = fixed_frame(
-            launch, LAUNCH_STATUS_H, bg=self._colors.bg
-        )
-        self._launch_status_frame.grid(row=lr, column=0, sticky="ew", pady=(0, 6))
-        self._launch_status_label = tk.Label(
-            self._launch_status_frame,
+        reserve_grid_row(launch, lr, LAUNCH_STATUS_H)
+        self._launch_status_label = ttk.Label(
+            launch,
             textvariable=self.status_var,
+            style="Hint.TLabel",
             anchor="w",
-            justify="left",
-            bg=self._colors.bg,
-            fg=self._colors.muted,
-            font=("Segoe UI", 9),
         )
-        self._launch_status_label.pack(fill="x", anchor="w")
+        self._launch_status_label.grid(
+            row=lr, column=0, sticky="ew", pady=(0, 6)
+        )
         lr += 1
         self.progress = ttk.Progressbar(launch, mode="determinate")
         self.progress.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
@@ -416,23 +412,23 @@ class MinecraftLauncherApp:
         lr += 1
 
         self.game_status_var = tk.StringVar(value="MC не запущен")
-        self._game_status_frame = fixed_frame(launch, LAUNCH_STATUS_H, bg=self._colors.bg)
-        self._game_status_frame.grid(row=lr, column=0, sticky="ew")
+        reserve_grid_row(launch, lr, LAUNCH_STATUS_H)
         self.game_status_label = ttk.Label(
-            self._game_status_frame,
+            launch,
             textvariable=self.game_status_var,
             style="Status.TLabel",
+            anchor="w",
         )
-        self.game_status_label.pack(anchor="w")
+        self.game_status_label.grid(row=lr, column=0, sticky="w")
         lr += 1
         self.play_time_var = tk.StringVar(value="")
-        self._play_time_frame = fixed_frame(launch, LAUNCH_PLAY_TIME_H, bg=self._colors.bg)
-        self._play_time_frame.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
+        reserve_grid_row(launch, lr, LAUNCH_PLAY_TIME_H)
         ttk.Label(
-            self._play_time_frame,
+            launch,
             textvariable=self.play_time_var,
             style="Hint.TLabel",
-        ).pack(anchor="w")
+            anchor="w",
+        ).grid(row=lr, column=0, sticky="w", pady=(0, 10))
         lr += 1
 
         action_row = ttk.Frame(launch)
@@ -472,13 +468,11 @@ class MinecraftLauncherApp:
         self.folders_mb.grid(row=0, column=2, sticky="ew")
         lr += 1
 
-        self._path_frame = fixed_frame(launch, LAUNCH_PATH_H, bg=self._colors.bg)
-        self._path_frame.grid(row=lr, column=0, sticky="ew", pady=(4, 0))
-        self._path_frame.columnconfigure(0, weight=1)
+        reserve_grid_row(launch, lr, LAUNCH_PATH_H)
         self.path_label = ttk.Label(
-            self._path_frame, text="", style="Hint.TLabel", anchor="w"
+            launch, text="", style="Hint.TLabel", anchor="w"
         )
-        self.path_label.grid(row=0, column=0, sticky="ew")
+        self.path_label.grid(row=lr, column=0, sticky="ew", pady=(4, 0))
         self._update_path_label()
         lr += 1
 
@@ -1105,18 +1099,6 @@ class MinecraftLauncherApp:
         self.settings.dark_theme = not self.settings.dark_theme
         self.settings.save(LAUNCHER_DIR)
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
-        if hasattr(self, "_launch_status_frame"):
-            self._launch_status_frame.configure(bg=self._colors.bg)
-            self._launch_status_label.configure(
-                bg=self._colors.bg, fg=self._colors.muted
-            )
-        for attr in ("_game_status_frame", "_play_time_frame", "_path_frame"):
-            fr = getattr(self, attr, None)
-            if fr is not None:
-                try:
-                    fr.configure(bg=self._colors.bg)
-                except tk.TclError:
-                    pass
 
     def _export_backup(self) -> None:
         if not self.current_build:

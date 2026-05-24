@@ -40,20 +40,9 @@ def ellipsize(text: str, max_len: int = 72) -> str:
     return flat[: max_len - 1] + "…"
 
 
-def fixed_frame(
-    parent: ttk.Misc,
-    height: int,
-    *,
-    bg: str | None = None,
-) -> tk.Frame:
-    """Контейнер с фиксированной высотой (grid_propagate отключён)."""
-    kw: dict = {"height": height}
-    if bg is not None:
-        kw["bg"] = bg
-    frame = tk.Frame(parent, **kw)
-    frame.grid_propagate(False)
-    frame.pack_propagate(False)
-    return frame
+def reserve_grid_row(parent: ttk.Misc, row: int, height: int) -> None:
+    """Фиксированная высота строки grid без tk.Frame (нет чёрных «пятен» на Windows)."""
+    parent.rowconfigure(row, minsize=height)
 
 
 def setup_form_grid(container: ttk.Misc, *, label_minsize: int = LABEL_MIN) -> None:
@@ -102,8 +91,6 @@ def app_header(parent: ttk.Misc, title: str, version: str) -> ttk.Frame:
     frame.columnconfigure(0, weight=1)
     ttk.Label(frame, text=title, style="Title.TLabel").grid(row=0, column=0, sticky="w")
     ttk.Label(frame, text=version, style="Subtitle.TLabel").grid(row=0, column=1, sticky="e")
-    sep = ttk.Separator(frame, orient="horizontal")
-    sep.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
     return frame
 
 

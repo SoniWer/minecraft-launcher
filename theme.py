@@ -77,7 +77,42 @@ def apply_theme(root: tk.Misc, *, dark: bool) -> ThemeColors:
         _apply_sv_or_clam(root, colors, dark=False)
 
     _configure_styles(root, colors)
+    _sync_ttk_backgrounds(root, colors)
     return colors
+
+
+def _sync_ttk_backgrounds(root: tk.Misc, colors: ThemeColors) -> None:
+    """Единый фон для всех ttk-элементов (после sv_ttk, иначе «чёрные квадраты»)."""
+    style = ttk.Style(root)
+    bg = colors.bg
+    for name in (
+        "TLabel",
+        "TFrame",
+        "TLabelframe",
+        "TNotebook",
+        "TNotebook.Tab",
+        "Card.TLabelframe",
+        "Card.TLabelframe.Label",
+        "Title.TLabel",
+        "Subtitle.TLabel",
+        "Form.TLabel",
+        "Hint.TLabel",
+        "Status.TLabel",
+        "Success.TLabel",
+        "Tool.TButton",
+        "Accent.TButton",
+        "Stop.TButton",
+        "Horizontal.TSeparator",
+    ):
+        try:
+            style.configure(name, background=bg)
+        except tk.TclError:
+            pass
+    try:
+        style.configure("Card.TLabelframe", bordercolor=colors.border)
+        style.configure("Tool.TButton", borderwidth=0)
+    except tk.TclError:
+        pass
 
 
 def theme_for_child(
@@ -170,6 +205,7 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
         background=colors.bg,
         foreground=colors.fg,
         font=FONTS["title"],
+        borderwidth=0,
     )
     style.configure(
         "Subtitle.TLabel",
@@ -182,6 +218,7 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
         background=colors.bg,
         foreground=colors.muted,
         font=FONTS["form"],
+        borderwidth=0,
     )
     style.configure(
         "Hint.TLabel",
@@ -202,7 +239,7 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
         font=FONTS["body"],
     )
     style.configure("Accent.TButton", font=FONTS["play"], padding=pad_btn)
-    style.configure("Tool.TButton", padding=pad_tool)
+    style.configure("Tool.TButton", padding=pad_tool, borderwidth=0)
     style.configure("Danger.TButton", padding=pad_tool)
     style.configure("Stop.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Treeview", rowheight=28, font=FONTS["body"])
