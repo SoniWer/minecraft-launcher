@@ -84,19 +84,6 @@ def apply_theme(root: tk.Misc, *, dark: bool) -> ThemeColors:
 
 
 _FLAT_LABEL_LAYOUT = [("Label.label", {"sticky": "w"})]
-_FLAT_TOOL_BUTTON_LAYOUT = [("Button.label", {"sticky": "nswe"})]
-_MENU_MENUBUTTON_LAYOUT = [
-    (
-        "Menubutton.padding",
-        {
-            "sticky": "nswe",
-            "children": [
-                ("Menubutton.label", {"side": "left", "expand": 1}),
-                ("Menubutton.indicator", {"side": "right", "sticky": "ns"}),
-            ],
-        },
-    ),
-]
 
 
 def _flatten_sv_ttk_layouts(style: ttk.Style, colors: ThemeColors) -> None:
@@ -123,30 +110,6 @@ def _flatten_sv_ttk_layouts(style: ttk.Style, colors: ThemeColors) -> None:
         style.configure("TFrame", background=bg, borderwidth=0)
     except tk.TclError:
         pass
-    try:
-        style.layout("Tool.TButton", _FLAT_TOOL_BUTTON_LAYOUT)
-        style.configure(
-            "Tool.TButton",
-            background=bg,
-            borderwidth=0,
-            focuscolor=bg,
-            relief="flat",
-        )
-        style.map(
-            "Tool.TButton",
-            background=[("active", colors.card), ("pressed", colors.entry)],
-        )
-    except tk.TclError:
-        pass
-    try:
-        style.layout("Menu.TMenubutton", _MENU_MENUBUTTON_LAYOUT)
-        style.configure("Menu.TMenubutton", background=bg, borderwidth=0, focuscolor=bg)
-        style.map(
-            "Menu.TMenubutton",
-            background=[("active", colors.card), ("pressed", colors.entry)],
-        )
-    except tk.TclError:
-        pass
 
 
 def _sync_ttk_backgrounds(root: tk.Misc, colors: ThemeColors) -> None:
@@ -168,7 +131,7 @@ def _sync_ttk_backgrounds(root: tk.Misc, colors: ThemeColors) -> None:
         "Status.TLabel",
         "Success.TLabel",
         "Tool.TButton",
-        "Menu.TMenubutton",
+        "TMenubutton",
         "Accent.TButton",
         "Stop.TButton",
         "Horizontal.TSeparator",
@@ -309,7 +272,7 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
     )
     style.configure("Accent.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Tool.TButton", padding=pad_tool, borderwidth=0)
-    style.configure("Menu.TMenubutton", padding=pad_tool, borderwidth=0)
+    style.configure("TMenubutton", padding=pad_tool)
     style.configure("Danger.TButton", padding=pad_tool)
     style.configure("Stop.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Treeview", rowheight=28, font=FONTS["body"])

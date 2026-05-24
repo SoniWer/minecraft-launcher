@@ -80,8 +80,6 @@ from ui_layout import (
     FORM_ROW_PY,
     LABEL_COL,
     LABEL_GAP,
-    LAUNCH_PATH_H,
-    LAUNCH_PLAY_TIME_H,
     LAUNCH_STATUS_H,
     SHELL_PAD,
     TAB_PAD,
@@ -90,7 +88,6 @@ from ui_layout import (
     ellipsize,
     reserve_grid_row,
     form_field,
-    form_hint,
     form_label,
     setup_form_grid,
 )
@@ -247,9 +244,10 @@ class MinecraftLauncherApp:
         app_header(main, "Minecraft Launcher", f"v{LAUNCHER_VERSION}")
 
         body = ttk.Frame(main)
-        body.pack(fill="x")
-        body.columnconfigure(0, weight=3, minsize=380)
-        body.columnconfigure(1, weight=2, minsize=280)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(0, weight=1, minsize=360)
+        body.columnconfigure(1, weight=1, minsize=300)
+        body.rowconfigure(0, weight=1)
 
         left_nb = ttk.Notebook(body)
         left_nb.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
@@ -281,18 +279,15 @@ class MinecraftLauncherApp:
                 row=0, column=col, padx=(0 if col == 1 else BTN_GAP, 0)
             )
 
-        self.build_summary_var = tk.StringVar(value="")
-        form_hint(tab_build, 1, self.build_summary_var)
-
         self.username_var = tk.StringVar(value="Player")
-        form_label(tab_build, 2, "Никнейм")
+        form_label(tab_build, 1, "Никнейм")
         self.username_entry = ttk.Combobox(tab_build, textvariable=self.username_var)
-        form_field(self.username_entry, 2)
+        form_field(self.username_entry, 1)
         self.username_var.trace_add("write", self._on_settings_changed)
 
-        form_label(tab_build, 3, "Версия MC")
+        form_label(tab_build, 2, "Версия MC")
         ver_inner = ttk.Frame(tab_build)
-        form_field(ver_inner, 3)
+        form_field(ver_inner, 2)
         ver_inner.columnconfigure(0, weight=1)
         self.version_combo = ttk.Combobox(ver_inner, state="disabled")
         self.version_combo.grid(row=0, column=0, sticky="ew")
@@ -302,7 +297,7 @@ class MinecraftLauncherApp:
         )
         self.btn_favorite_version.grid(row=0, column=1, padx=(BTN_GAP, 0))
 
-        form_label(tab_build, 4, "Загрузчик")
+        form_label(tab_build, 3, "Загрузчик")
         self.loader_var = tk.StringVar(value="Vanilla (без модов)")
         self.loader_combo = ttk.Combobox(
             tab_build,
@@ -310,12 +305,12 @@ class MinecraftLauncherApp:
             values=[name for _, name in MOD_LOADERS],
             state="readonly",
         )
-        form_field(self.loader_combo, 4)
+        form_field(self.loader_combo, 3)
         self.loader_combo.bind("<<ComboboxSelected>>", self._on_loader_changed)
 
-        self.loader_version_label = form_label(tab_build, 5, "Верс. загр.")
+        self.loader_version_label = form_label(tab_build, 4, "Верс. загр.")
         self.loader_version_combo = ttk.Combobox(tab_build, state="disabled")
-        form_field(self.loader_version_combo, 5)
+        form_field(self.loader_version_combo, 4)
         self.loader_version_combo.bind(
             "<<ComboboxSelected>>", self._on_loader_version_changed
         )
@@ -323,14 +318,14 @@ class MinecraftLauncherApp:
 
         self.filter_var = tk.StringVar(value="release")
         self.filter_display_var = tk.StringVar(value="Релизы")
-        form_label(tab_build, 6, "Список MC")
+        form_label(tab_build, 5, "Список MC")
         self.filter_combo = ttk.Combobox(
             tab_build,
             textvariable=self.filter_display_var,
             values=list(FILTER_LABELS),
             state="readonly",
         )
-        form_field(self.filter_combo, 6)
+        form_field(self.filter_combo, 5)
         self.filter_combo.bind("<<ComboboxSelected>>", self._on_filter_combo_changed)
 
         self.java_var = tk.StringVar()
@@ -338,12 +333,9 @@ class MinecraftLauncherApp:
         self.java_combo = ttk.Combobox(tab_java, textvariable=self.java_var, state="readonly")
         form_field(self.java_combo, 0)
         self.java_combo.bind("<<ComboboxSelected>>", self._on_java_changed)
-        self.java_hint_var = tk.StringVar(value="")
-        form_hint(tab_java, 1, self.java_hint_var)
-
-        form_label(tab_java, 2, "ОЗУ (ГБ)")
+        form_label(tab_java, 1, "ОЗУ (ГБ)")
         ram_row = ttk.Frame(tab_java)
-        form_field(ram_row, 2)
+        form_field(ram_row, 1)
         self.ram_var = tk.StringVar(value="4")
         self.ram_combo = ttk.Combobox(
             ram_row, textvariable=self.ram_var, values=RAM_OPTIONS_GB, width=6
@@ -354,12 +346,9 @@ class MinecraftLauncherApp:
         )
         self.btn_ram_recommend.pack(side="left", padx=(BTN_GAP + 4, 0))
         self.ram_var.trace_add("write", self._on_ram_changed)
-        self.ram_hint_var = tk.StringVar(value="")
-        form_hint(tab_java, 3, self.ram_hint_var)
-
-        form_label(tab_java, 4, "JVM")
+        form_label(tab_java, 2, "JVM")
         jvm_row = ttk.Frame(tab_java)
-        form_field(jvm_row, 4)
+        form_field(jvm_row, 2)
         jvm_row.columnconfigure(1, weight=1)
         self.jvm_preset_var = tk.StringVar(value="По умолчанию")
         self.jvm_preset_combo = ttk.Combobox(
@@ -379,7 +368,7 @@ class MinecraftLauncherApp:
         launch = ttk.LabelFrame(
             body, text="  Запуск  ", style="Card.TLabelframe", padding=CARD_PAD
         )
-        launch.grid(row=0, column=1, sticky="new")
+        launch.grid(row=0, column=1, sticky="nsew")
         launch.columnconfigure(0, weight=1)
         lr = 0
         self._last_launch_status = ""
@@ -395,6 +384,7 @@ class MinecraftLauncherApp:
         self._launch_status_label.grid(
             row=lr, column=0, sticky="ew", pady=(0, 6)
         )
+        self._launch_status_label.configure(anchor="center")
         lr += 1
         self.progress = ttk.Progressbar(launch, mode="determinate")
         self.progress.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
@@ -419,16 +409,8 @@ class MinecraftLauncherApp:
             style="Status.TLabel",
             anchor="w",
         )
-        self.game_status_label.grid(row=lr, column=0, sticky="w")
-        lr += 1
-        self.play_time_var = tk.StringVar(value="")
-        reserve_grid_row(launch, lr, LAUNCH_PLAY_TIME_H)
-        ttk.Label(
-            launch,
-            textvariable=self.play_time_var,
-            style="Hint.TLabel",
-            anchor="w",
-        ).grid(row=lr, column=0, sticky="w", pady=(0, 10))
+        self.game_status_label.grid(row=lr, column=0, sticky="ew")
+        self.game_status_label.configure(anchor="center")
         lr += 1
 
         action_row = ttk.Frame(launch)
@@ -468,14 +450,6 @@ class MinecraftLauncherApp:
         self.folders_mb.grid(row=0, column=2, sticky="ew")
         lr += 1
 
-        reserve_grid_row(launch, lr, LAUNCH_PATH_H)
-        self.path_label = ttk.Label(
-            launch, text="", style="Hint.TLabel", anchor="w"
-        )
-        self.path_label.grid(row=lr, column=0, sticky="ew", pady=(4, 0))
-        self._update_path_label()
-        lr += 1
-
         ttk.Separator(launch, orient="horizontal").grid(
             row=lr, column=0, sticky="ew", pady=(10, 6)
         )
@@ -487,7 +461,7 @@ class MinecraftLauncherApp:
             command=self._open_logs_game_tab,
             width=14,
         )
-        self.logs_btn.grid(row=lr, column=0, sticky="e")
+        self.logs_btn.grid(row=lr, column=0, sticky="ew")
 
         for combo, var in (
             (self.build_combo, self.build_var),
@@ -582,30 +556,17 @@ class MinecraftLauncherApp:
             self._set_launch_status(f"Игра завершилась (код {exit_code})")
 
     def _update_play_time_label(self) -> None:
-        if not self.current_build:
-            self.play_time_var.set("")
-            return
-        parts: list[str] = []
-        total = int(self.current_build.play_time_seconds or 0)
-        launches = int(getattr(self.current_build, "launch_count", 0) or 0)
-        if total > 0:
-            parts.append(format_play_time(total))
-        if launches > 0:
-            parts.append(f"{launches} запуск(ов)")
-        if parts:
-            self.play_time_var.set("Сборка: " + " · ".join(parts))
-        else:
-            self.play_time_var.set("")
+        self._update_build_tooltip()
 
     def _register_tooltips(self) -> None:
+        self._tip_build = add_tooltip(self.build_combo, "")
+        self._tip_java = add_tooltip(self.java_combo, "")
+        self._tip_ram = add_tooltip(self.ram_combo, "")
         tips: list[tuple[tk.Misc, str]] = [
-            (self.build_combo, "Отдельный профиль: моды, миры и настройки"),
             (self.username_entry, "Офлайн-никнейм; список — недавние ники"),
-            (self.java_combo, "Java для запуска; «Авто» подбирает по версии MC"),
             (self.loader_combo, "Fabric, Forge, NeoForge, Quilt или Vanilla"),
             (self.version_combo, "Версия Minecraft для этой сборки"),
             (self.loader_version_combo, "Версия мод-загрузчика для выбранной MC"),
-            (self.ram_combo, "Память для JVM (-Xmx), в гигабайтах"),
             (self.btn_ram_recommend, "Подставить ОЗУ по числу модов"),
             (self.jvm_preset_combo, "Готовые наборы JVM-флагов"),
             (self.jvm_args_entry, "Дополнительные аргументы Java (-XX:…)"),
@@ -621,17 +582,76 @@ class MinecraftLauncherApp:
             add_tooltip(widget, text)
 
         add_tooltip(self.btn_favorite_version, "Закрепить версию вверху списка")
+        self._update_build_tooltip()
+        self._update_java_tooltip()
+        self._update_ram_tooltip()
 
-    def _update_path_label(self) -> None:
-        game = self._game_dir()
-        line = f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
-        self.path_label.configure(text=ellipsize(line, 64))
+    def _update_build_tooltip(self) -> None:
+        if not hasattr(self, "_tip_build"):
+            return
+        lines = ["Отдельный профиль: моды, миры и настройки"]
+        if not self.current_build:
+            self._tip_build.set_text(lines[0])
+            return
+        mc = self.current_build.mc_version or "версия не выбрана"
+        loader = LOADER_DISPLAY.get(self.current_build.loader, "Vanilla")
+        lv = self.current_build.loader_version
+        extra = f" · {lv}" if lv and self.current_build.loader != "vanilla" else ""
+        lines.append(f"Профиль: {mc} · {loader}{extra}")
+        lines.append(
+            format_install_status(
+                self.shared_dir,
+                mc_version=self._resolved_mc_version() or self.current_build.mc_version,
+                loader_id=self.current_build.loader,
+                loader_version=lv,
+            )
+        )
+        lines.append(f"Папка сборки:\n{self._game_dir()}")
+        stat_parts: list[str] = []
+        total = int(self.current_build.play_time_seconds or 0)
+        launches = int(getattr(self.current_build, "launch_count", 0) or 0)
+        if total > 0:
+            stat_parts.append(format_play_time(total))
+        if launches > 0:
+            stat_parts.append(f"{launches} запуск(ов)")
+        if stat_parts:
+            lines.append("Время в игре: " + " · ".join(stat_parts))
+        self._tip_build.set_text("\n".join(lines))
+
+    def _update_java_tooltip(self) -> None:
+        if not hasattr(self, "_tip_java"):
+            return
+        lines = ["Java для запуска; «Авто» подбирает по версии MC"]
+        mc_version = self.version_combo.get().strip()
+        if mc_version:
+            lines.append(java_hint(mc_version))
+        else:
+            lines.append("Выберите версию Minecraft")
+        self._tip_java.set_text("\n".join(lines))
+
+    def _update_ram_tooltip(self) -> None:
+        if not hasattr(self, "_tip_ram"):
+            return
+        lines = ["Память для JVM (-Xmx), в гигабайтах"]
+        if self.current_build:
+            try:
+                current = self._parse_ram_gb() or self.current_build.ram_gb
+            except Exception:
+                current = self.current_build.ram_gb
+            lines.append(
+                ram_hint_text(
+                    self._game_dir(),
+                    loader=self._loader_id(),
+                    current_gb=current,
+                )
+            )
+        self._tip_ram.set_text("\n".join(lines))
 
     def _open_logs_game_tab(self) -> None:
         self._open_logs_and_crashes(initial_tab=1)
 
     def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Контент ▾", style="Menu.TMenubutton")
+        mb = ttk.Menubutton(parent, text="Контент ▾", style="TMenubutton")
         self._content_menu = tk.Menu(mb, tearoff=0)
         self._style_menu(self._content_menu)
         self._content_menu.add_command(label="Моды", command=self._open_mod_manager)
@@ -677,7 +697,7 @@ class MinecraftLauncherApp:
         PackListWindow(self.root, game_dir=self._game_dir(), kind=kind)
 
     def _create_utils_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Утилиты ▾", style="Menu.TMenubutton")
+        mb = ttk.Menubutton(parent, text="Утилиты ▾", style="TMenubutton")
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
         menu.add_command(label="Экспорт сборки", command=self._export_backup)
@@ -707,7 +727,7 @@ class MinecraftLauncherApp:
         return mb
 
     def _create_folders_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Папки ▾", style="Menu.TMenubutton")
+        mb = ttk.Menubutton(parent, text="Папки ▾", style="TMenubutton")
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
         for label, sub, tip in (
@@ -753,24 +773,6 @@ class MinecraftLauncherApp:
         label = self.filter_display_var.get()
         self.filter_var.set(FILTER_BY_LABEL.get(label, "release"))
         self._on_filter_changed()
-
-    def _update_build_summary(self) -> None:
-        if not self.current_build:
-            self.build_summary_var.set("")
-            return
-        mc = self.current_build.mc_version or "версия не выбрана"
-        loader = LOADER_DISPLAY.get(self.current_build.loader, "Vanilla")
-        lv = self.current_build.loader_version
-        extra = f" · {lv}" if lv and self.current_build.loader != "vanilla" else ""
-        install = format_install_status(
-            self.shared_dir,
-            mc_version=self._resolved_mc_version() or self.current_build.mc_version,
-            loader_id=self.current_build.loader,
-            loader_version=lv,
-        )
-        self.build_summary_var.set(
-            f"Профиль: {mc} · {loader}{extra}\n{install}"
-        )
 
     def _version_ids_for_current_filter(self) -> list[str]:
         if not self.versions:
@@ -824,12 +826,11 @@ class MinecraftLauncherApp:
         self._sync_jvm_preset_combo()
         self._suppress_build_save = False
         build.ensure_dirs(LAUNCHER_DIR)
-        self._update_path_label()
-        self._update_build_summary()
         self._apply_filter()
         self._refresh_loader_versions_async()
-        self._update_java_hint()
-        self._update_ram_hint()
+        self._update_build_tooltip()
+        self._update_java_tooltip()
+        self._update_ram_tooltip()
         self._update_favorite_button()
         self._update_play_time_label()
         self.settings.remember_build(build.name)
@@ -998,8 +999,8 @@ class MinecraftLauncherApp:
         self._update_content_menu_state()
         self._apply_filter()
         self._refresh_loader_versions_async()
-        self._update_ram_hint()
-        self._update_build_summary()
+        self._update_ram_tooltip()
+        self._update_build_tooltip()
         self._save_current_build()
 
     def _on_loader_version_changed(self, _event: object | None = None) -> None:
@@ -1009,38 +1010,22 @@ class MinecraftLauncherApp:
     def _on_mc_version_changed(self, _event: object | None = None) -> None:
         self._invalidate_modpack_launch()
         self._refresh_loader_versions_async()
-        self._update_java_hint()
-        self._update_ram_hint()
+        self._update_java_tooltip()
+        self._update_ram_tooltip()
         self._update_favorite_button()
-        self._update_build_summary()
+        self._update_build_tooltip()
         self._save_current_build()
 
     def _on_ram_changed(self, *_args: object) -> None:
-        self._update_ram_hint()
+        self._update_ram_tooltip()
         self._on_settings_changed()
-
-    def _update_ram_hint(self) -> None:
-        if not self.current_build:
-            self.ram_hint_var.set("")
-            return
-        try:
-            current = self._parse_ram_gb() or self.current_build.ram_gb
-        except Exception:
-            current = self.current_build.ram_gb
-        self.ram_hint_var.set(
-            ram_hint_text(
-                self._game_dir(),
-                loader=self._loader_id(),
-                current_gb=current,
-            )
-        )
 
     def _apply_recommended_ram(self) -> None:
         if not self.current_build:
             return
         value = recommend_ram_gb(self._game_dir(), loader=self._loader_id())
         self.ram_var.set(str(value))
-        self._update_ram_hint()
+        self._update_ram_tooltip()
 
     def _on_game_running_changed(self, running: bool) -> None:
         self._game_log_collector.set_game_running(running)
@@ -1200,13 +1185,6 @@ class MinecraftLauncherApp:
             installs=self.java_installs,
         )
 
-    def _update_java_hint(self) -> None:
-        mc_version = self.version_combo.get().strip()
-        if mc_version:
-            self.java_hint_var.set(java_hint(mc_version))
-        else:
-            self.java_hint_var.set("Выберите версию Minecraft для подсказки по Java")
-
     def _load_java_installs_async(self) -> None:
         def worker() -> list[JavaInstall]:
             try:
@@ -1224,7 +1202,7 @@ class MinecraftLauncherApp:
             self._set_java_combo(self.current_build.java_path)
         elif labels:
             self.java_var.set(labels[0])
-        self._update_java_hint()
+        self._update_java_tooltip()
 
     def _on_java_changed(self, _event: object | None = None) -> None:
         path = self._selected_java_path()

@@ -18,7 +18,12 @@ class ToolTip:
         widget.bind("<Leave>", self._on_leave, add="+")
         widget.bind("<ButtonPress>", self._on_leave, add="+")
 
+    def set_text(self, text: str) -> None:
+        self.text = (text or "").strip()
+
     def _on_enter(self, _event: object = None) -> None:
+        if not self.text:
+            return
         self._cancel()
         self._after_id = self.widget.after(self.delay_ms, self._show)
 

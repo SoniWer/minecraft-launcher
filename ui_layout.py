@@ -89,8 +89,9 @@ def app_header(parent: ttk.Misc, title: str, version: str) -> ttk.Frame:
     frame = ttk.Frame(parent)
     frame.pack(fill="x", pady=(0, 10))
     frame.columnconfigure(0, weight=1)
-    ttk.Label(frame, text=title, style="Title.TLabel").grid(row=0, column=0, sticky="w")
-    ttk.Label(frame, text=version, style="Subtitle.TLabel").grid(row=0, column=1, sticky="e")
+    frame.columnconfigure(1, weight=1)
+    ttk.Label(frame, text=title, style="Title.TLabel").grid(row=0, column=0, sticky="e")
+    ttk.Label(frame, text=version, style="Subtitle.TLabel").grid(row=0, column=1, sticky="w")
     return frame
 
 
