@@ -140,7 +140,7 @@ class ModrinthBrowser(tk.Toplevel):
         filters.columnconfigure(5, weight=1)
 
         ttk.Label(filters, text="Тип", style="Form.TLabel").grid(row=0, column=0, sticky="e")
-        self.type_var = tk.StringVar(value="Сборки (modpack)")
+        self.type_var = tk.StringVar(value="Моды")
         self.type_combo = ttk.Combobox(
             filters,
             textvariable=self.type_var,

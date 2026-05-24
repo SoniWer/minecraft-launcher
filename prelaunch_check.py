@@ -8,6 +8,7 @@ from pathlib import Path
 from disk_check import free_gb, needs_download_warning
 from game_logs import latest_crash_report
 from java_manager import JavaInstall, required_java_major
+from mod_duplicates import find_duplicate_mods
 from ram_advisor import count_mod_jars, recommend_ram_gb
 
 
@@ -133,6 +134,21 @@ def run_prelaunch_checks(
                     f"Мало места на диске для {reason} (~{need_gb:.1f} ГБ, свободно {free:.1f} ГБ).",
                 )
             )
+
+    dup_groups = find_duplicate_mods(game_dir / "mods")
+    if dup_groups:
+        dup_lines: list[str] = []
+        for group in dup_groups[:4]:
+            names = ", ".join(p.name for p in group.paths)
+            dup_lines.append(f"{group.label}: {names}")
+        if len(dup_groups) > 4:
+            dup_lines.append(f"…ещё {len(dup_groups) - 4} групп")
+        results.append(
+            CheckResult(
+                "warning",
+                "Дубликаты модов (удалите лишние .jar):\n" + "\n".join(dup_lines),
+            )
+        )
 
     crash = latest_crash_report(game_dir)
     if crash and crash.is_file():

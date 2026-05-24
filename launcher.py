@@ -45,7 +45,11 @@ from build_backup import (
     export_partial_zip,
     import_build_zip,
 )
+import discord_presence
 from changelog import changelog_for_version
+from mod_duplicates import find_duplicate_mods
+from mod_updates_ui import ModUpdatesWindow
+from play_stats_ui import PlayStatsWindow
 from install_status import format_install_status
 from drag_drop import enable_jar_drop
 from play_time import format_play_time
@@ -190,6 +194,7 @@ class MinecraftLauncherApp:
         )
         self._game_tracker.bind_root(self.root)
         self._install_busy = False
+        self._launch_busy = False
 
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
         self._build_ui()
@@ -203,6 +208,7 @@ class MinecraftLauncherApp:
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
         self.root.after(0, self._center_main_window)
+        self.root.after(800, self._setup_discord_presence)
 
     def _center_main_window(self) -> None:
         w = getattr(self, "_window_w", 980)
@@ -539,6 +545,7 @@ class MinecraftLauncherApp:
             self.current_build.play_time_seconds += seconds
             save_build(self.current_build, LAUNCHER_DIR)
             self._update_play_time_label()
+        self._sync_discord_presence(running=False)
         self.root.after(400, self._refresh_crash_bar)
         if exit_code not in (None, 0):
             self.status_var.set(f"Игра завершилась (код {exit_code})")
@@ -547,11 +554,15 @@ class MinecraftLauncherApp:
         if not self.current_build:
             self.play_time_var.set("")
             return
-        total = self.current_build.play_time_seconds
+        parts: list[str] = []
+        total = int(self.current_build.play_time_seconds or 0)
+        launches = int(getattr(self.current_build, "launch_count", 0) or 0)
         if total > 0:
-            self.play_time_var.set(
-                f"Время в игре (сборка): {format_play_time(total)}"
-            )
+            parts.append(format_play_time(total))
+        if launches > 0:
+            parts.append(f"{launches} запуск(ов)")
+        if parts:
+            self.play_time_var.set("Сборка: " + " · ".join(parts))
         else:
             self.play_time_var.set("")
 
@@ -658,9 +669,24 @@ class MinecraftLauncherApp:
         )
         menu.add_command(label="Импорт сборки", command=self._import_backup)
         menu.add_separator()
+        menu.add_command(
+            label="Обновить все моды (Modrinth)",
+            command=self._open_mod_updates,
+        )
+        menu.add_command(
+            label="Проверка дубликатов модов",
+            command=self._check_duplicate_mods,
+        )
+        menu.add_command(label="Статистика", command=self._open_play_stats)
+        menu.add_separator()
+        menu.add_command(label="Что нового", command=self._show_changelog_manual)
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
         menu.add_command(label="Скачать Java", command=self._download_java)
         menu.add_command(label="Тема", command=self._toggle_theme)
+        menu.add_command(
+            label="Discord Rich Presence",
+            command=self._toggle_discord_presence,
+        )
         menu.add_command(label="Обновление лаунчера", command=self._check_updates_manual)
         mb["menu"] = menu
         self.btn_update = mb
@@ -996,12 +1022,21 @@ class MinecraftLauncherApp:
             if running:
                 self.log_panel.reset_source()
         self._update_play_button(running)
+        self._sync_discord_presence(running=running)
         if running:
             self.game_status_var.set("● Minecraft запущен")
             self.game_status_label.configure(style="Success.TLabel")
         else:
             self.game_status_var.set("Minecraft не запущен")
             self.game_status_label.configure(style="Status.TLabel")
+
+    def _can_start_play(self) -> bool:
+        return (
+            bool(self.versions)
+            and not self._install_busy
+            and not self._launch_busy
+            and not self._game_tracker.running
+        )
 
     def _update_play_button(self, game_running: bool | None = None) -> None:
         if game_running is None:
@@ -1013,12 +1048,19 @@ class MinecraftLauncherApp:
                 command=self._kill_game,
                 state="normal",
             )
+        elif self._launch_busy:
+            self.play_btn.configure(
+                text="▶  Играть",
+                style="Accent.TButton",
+                command=self._on_play,
+                state="disabled",
+            )
         else:
             self.play_btn.configure(
                 text="▶  Играть",
                 style="Accent.TButton",
                 command=self._on_play,
-                state="normal" if self.versions else "disabled",
+                state="normal" if self._can_start_play() else "disabled",
             )
 
     def _kill_game(self) -> None:
@@ -1262,9 +1304,8 @@ class MinecraftLauncherApp:
     def _set_busy(self, busy: bool) -> None:
         self._install_busy = busy
         if busy:
-            self.play_btn.configure(state="disabled")
-        else:
-            self._update_play_button()
+            self._sync_discord_presence_installing("Установка…")
+        self._update_play_button()
         self.version_combo.configure(state="disabled" if busy else "readonly")
         self.build_combo.configure(state="disabled" if busy else "readonly")
         self.java_combo.configure(state="disabled" if busy else "readonly")
@@ -1293,7 +1334,7 @@ class MinecraftLauncherApp:
         self._apply_filter()
         self._refresh_loader_versions_async()
         if self.versions:
-            self.play_btn.configure(state="normal")
+            self._update_play_button()
 
     def _version_ids_for_loader(self) -> list[str]:
         kind = self.filter_var.get()
@@ -1419,6 +1460,8 @@ class MinecraftLauncherApp:
     def _on_play(self) -> None:
         if not self.current_build:
             return
+        if self._launch_busy or self._install_busy or self._game_tracker.running:
+            return
 
         mc_version = self.version_combo.get().strip()
         username = self.username_var.get().strip()
@@ -1482,8 +1525,11 @@ class MinecraftLauncherApp:
             ):
                 return
 
+        self._launch_busy = True
         self._set_busy(True)
         self.progress.configure(value=0, maximum=100)
+        self._update_play_button()
+        self._sync_discord_presence_installing("Подготовка к запуску…")
 
         def worker() -> None:
             try:
@@ -1513,7 +1559,17 @@ class MinecraftLauncherApp:
                     cwd=self.shared_dir,
                     creationflags=creationflags,
                 )
-                self.root.after(0, lambda p=proc: self._game_tracker.attach(p))
+
+                def on_started(p: subprocess.Popen[bytes]) -> None:
+                    if self.current_build:
+                        self.current_build.launch_count = int(
+                            getattr(self.current_build, "launch_count", 0) or 0
+                        ) + 1
+                        save_build(self.current_build, LAUNCHER_DIR)
+                        self._update_play_time_label()
+                    self._game_tracker.attach(p)
+
+                self.root.after(0, lambda p=proc: on_started(p))
             except UnsupportedVersion as exc:
                 self.root.after(
                     0, lambda msg=str(exc): messagebox.showerror("Ошибка", msg)
@@ -1527,7 +1583,11 @@ class MinecraftLauncherApp:
                     ),
                 )
             finally:
-                self.root.after(0, lambda: self._set_busy(False))
+                def finish_launch() -> None:
+                    self._launch_busy = False
+                    self._set_busy(False)
+
+                self.root.after(0, finish_launch)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1541,6 +1601,7 @@ class MinecraftLauncherApp:
 
     def _on_close(self) -> None:
         try:
+            discord_presence.disconnect()
             self._save_current_build()
             self._save_window_geometry()
             self.settings.save(LAUNCHER_DIR)
@@ -1606,6 +1667,127 @@ class MinecraftLauncherApp:
         messagebox.showinfo("Что нового", text, parent=self.root)
         self.settings.last_seen_launcher_version = LAUNCHER_VERSION
         self.settings.save(LAUNCHER_DIR)
+
+    def _show_changelog_manual(self) -> None:
+        text = changelog_for_version(LAUNCHER_VERSION)
+        if not text:
+            messagebox.showinfo(
+                "Что нового",
+                f"Версия {LAUNCHER_VERSION}\n\nОписание для этой версии не найдено.",
+                parent=self.root,
+            )
+            return
+        messagebox.showinfo("Что нового", text, parent=self.root)
+
+    def _open_play_stats(self) -> None:
+        PlayStatsWindow(self.root, launcher_dir=LAUNCHER_DIR)
+
+    def _open_mod_updates(self) -> None:
+        if not self.current_build:
+            messagebox.showwarning("Внимание", "Выберите сборку.", parent=self.root)
+            return
+        mc = self.version_combo.get().strip()
+        if not mc:
+            messagebox.showwarning(
+                "Внимание",
+                "Выберите версию Minecraft.",
+                parent=self.root,
+            )
+            return
+
+        def on_busy(busy: bool) -> None:
+            if busy:
+                self._set_busy(True)
+            elif not self._launch_busy:
+                self._set_busy(False)
+
+        ModUpdatesWindow(
+            self.root,
+            game_dir=self._game_dir(),
+            mc_version=mc,
+            loader_id=self._loader_id(),
+            on_auto_backup=lambda: self._auto_backup("mod-update"),
+            on_busy=on_busy,
+        )
+
+    def _check_duplicate_mods(self) -> None:
+        if not self.current_build:
+            messagebox.showwarning("Внимание", "Выберите сборку.", parent=self.root)
+            return
+        groups = find_duplicate_mods(self._game_dir() / "mods")
+        if not groups:
+            messagebox.showinfo(
+                "Дубликаты модов",
+                "Дубликаты не найдены.",
+                parent=self.root,
+            )
+            return
+        lines: list[str] = []
+        for group in groups:
+            names = "\n  ".join(p.name for p in group.paths)
+            lines.append(f"{group.label}:\n  {names}")
+        messagebox.showwarning(
+            "Дубликаты модов",
+            "Удалите лишние файлы из mods/:\n\n" + "\n\n".join(lines),
+            parent=self.root,
+        )
+
+    def _discord_client_id(self) -> str:
+        import os
+
+        return (
+            self.settings.discord_client_id.strip()
+            or os.environ.get("DISCORD_CLIENT_ID", "").strip()
+        )
+
+    def _setup_discord_presence(self) -> None:
+        if not self.settings.discord_presence_enabled:
+            return
+        client_id = self._discord_client_id()
+        if not client_id:
+            log_info(
+                "Discord: укажите discord_client_id в settings.json "
+                "или переменную DISCORD_CLIENT_ID"
+            )
+            return
+
+        def worker() -> None:
+            if discord_presence.connect(client_id):
+                discord_presence.set_idle(version=LAUNCHER_VERSION)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _sync_discord_presence(self, *, running: bool) -> None:
+        if not self.settings.discord_presence_enabled or not discord_presence.is_connected():
+            return
+        if running and self.current_build:
+            discord_presence.set_playing(
+                build_name=self.current_build.name,
+                mc_version=self.version_combo.get().strip()
+                or self.current_build.mc_version,
+                loader=self._loader_id(),
+            )
+        else:
+            discord_presence.set_idle(version=LAUNCHER_VERSION)
+
+    def _sync_discord_presence_installing(self, task: str) -> None:
+        if self.settings.discord_presence_enabled and discord_presence.is_connected():
+            discord_presence.set_installing(task=task)
+
+    def _toggle_discord_presence(self) -> None:
+        self.settings.discord_presence_enabled = not self.settings.discord_presence_enabled
+        self.settings.save(LAUNCHER_DIR)
+        if self.settings.discord_presence_enabled:
+            self._setup_discord_presence()
+            messagebox.showinfo(
+                "Discord",
+                "Rich Presence включён.\n"
+                "Нужен запущенный Discord и Application ID в settings.json.",
+                parent=self.root,
+            )
+        else:
+            discord_presence.disconnect()
+            messagebox.showinfo("Discord", "Rich Presence выключен.", parent=self.root)
 
     def _export_partial(self, *, mods: bool = False, saves: bool = False) -> None:
         if not self.current_build:

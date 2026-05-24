@@ -36,6 +36,7 @@ class Build:
     java_path: str = ""
     jvm_args: str = ""
     play_time_seconds: int = 0
+    launch_count: int = 0
 
     def root(self, launcher_dir: Path) -> Path:
         return builds_root(launcher_dir) / self.id
@@ -155,6 +156,7 @@ def clone_build(
         java_path=source.java_path,
         jvm_args=source.jvm_args,
         play_time_seconds=source.play_time_seconds,
+        launch_count=source.launch_count,
     )
     dst_root = new_build.root(launcher_dir)
     dst_root.mkdir(parents=True, exist_ok=True)

@@ -444,6 +444,73 @@ def scan_mod_updates(
     return results
 
 
+def apply_mod_update(
+    info: ModUpdateInfo,
+    *,
+    game_dir: Path,
+    mc_version: str,
+    loader: str | None,
+    on_progress: Callable[[int, int | None], None] | None = None,
+    on_status: Callable[[str], None] | None = None,
+) -> list[InstallResult]:
+    """Скачивает новую версию мода и удаляет старый .jar при успехе."""
+    if not info.update_available or not info.latest_version_id:
+        return []
+    version = get_version(info.latest_version_id)
+    old_path = info.path.resolve()
+    try:
+        old_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    results = install_version_with_dependencies(
+        version,
+        minecraft_dir=game_dir,
+        project_type="mod",
+        mc_version=mc_version,
+        loader=loader,
+        on_progress=on_progress,
+        on_status=on_status,
+    )
+    return results
+
+
+def apply_all_mod_updates(
+    updates: list[ModUpdateInfo],
+    *,
+    game_dir: Path,
+    mc_version: str,
+    loader: str | None,
+    on_progress: Callable[[int, int | None], None] | None = None,
+    on_status: Callable[[str], None] | None = None,
+) -> list[InstallResult]:
+    """Обновляет все моды с update_available."""
+    all_results: list[InstallResult] = []
+    pending = [u for u in updates if u.update_available and u.latest_version_id]
+    for index, info in enumerate(pending, start=1):
+        if on_status:
+            on_status(
+                f"Обновление {index}/{len(pending)}: {info.project_title or info.filename}"
+            )
+
+        def wrap_progress(done: int, total: int | None, *, base: int = index - 1) -> None:
+            if on_progress and total:
+                on_progress(base * 100 + int(done * 100 / total), len(pending) * 100)
+            elif on_progress:
+                on_progress(base * 100, len(pending) * 100)
+
+        all_results.extend(
+            apply_mod_update(
+                info,
+                game_dir=game_dir,
+                mc_version=mc_version,
+                loader=loader,
+                on_progress=wrap_progress if on_progress else None,
+                on_status=on_status,
+            )
+        )
+    return all_results
+
+
 def pick_primary_file(version: dict[str, Any]) -> dict[str, Any] | None:
     files = version.get("files") or []
     for file_info in files:

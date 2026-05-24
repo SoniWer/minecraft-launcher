@@ -40,6 +40,10 @@ LOCAL_MODULES: tuple[str, ...] = (
     "pack_manager_ui",
     "install_status",
     "changelog",
+    "mod_duplicates",
+    "mod_updates_ui",
+    "play_stats_ui",
+    "discord_presence",
     "extras_ui",
 )
 
