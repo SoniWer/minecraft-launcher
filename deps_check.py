@@ -13,13 +13,9 @@ REQUIRED_PACKAGES: tuple[tuple[str, str], ...] = (
     ("requests", "requests>=2.28"),
 )
 
-OPTIONAL_PACKAGES: tuple[tuple[str, str], ...] = (
-    ("sv_ttk", "sv-ttk>=2.5"),
-    ("windnd", "windnd>=1.0.3"),
-)
-
 LOCAL_MODULES: tuple[str, ...] = (
     "builds",
+    "loaders",
     "build_backup",
     "game_logs",
     "game_log_collector",
@@ -165,11 +161,3 @@ def require_dependencies(*, offer_install: bool = True) -> None:
         f"В командной строке из папки лаунчера:\n{hint}",
     )
     sys.exit(1)
-
-
-def check_optional_theme() -> bool:
-    try:
-        importlib.import_module("sv_ttk")
-        return True
-    except ImportError:
-        return False

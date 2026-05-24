@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
+from loaders import LOADER_LABELS, MOD_LOADERS
 from ui_layout import (
     DIALOG_PAD,
     autosize_toplevel,
@@ -16,14 +17,6 @@ from ui_layout import (
     setup_form_grid,
     setup_toplevel_window,
 )
-
-LOADER_CHOICES = [
-    ("vanilla", "Vanilla (без модов)"),
-    ("fabric", "Fabric"),
-    ("forge", "Forge"),
-    ("neoforge", "NeoForge"),
-    ("quilt", "Quilt"),
-]
 
 
 class NewBuildDialog(tk.Toplevel):
@@ -66,7 +59,7 @@ class NewBuildDialog(tk.Toplevel):
 
         form_label(body, 2, "Загрузчик")
         self.loader_var = tk.StringVar()
-        labels = [label for _, label in LOADER_CHOICES]
+        labels = LOADER_LABELS
         loader_combo = ttk.Combobox(
             body,
             textvariable=self.loader_var,
@@ -75,7 +68,7 @@ class NewBuildDialog(tk.Toplevel):
         )
         form_field(loader_combo, 2)
         display = next(
-            (label for lid, label in LOADER_CHOICES if lid == default_loader),
+            (label for lid, label in MOD_LOADERS if lid == default_loader),
             labels[0],
         )
         self.loader_var.set(display)
@@ -101,7 +94,7 @@ class NewBuildDialog(tk.Toplevel):
 
     def _loader_id(self) -> str:
         label = self.loader_var.get()
-        for lid, display in LOADER_CHOICES:
+        for lid, display in MOD_LOADERS:
             if display == label:
                 return lid
         return "vanilla"

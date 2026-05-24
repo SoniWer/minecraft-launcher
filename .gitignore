@@ -25,6 +25,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 _patch_*.py
 _polish.py
 _fix_*.py

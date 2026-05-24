@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 
 from java_download import (
     JavaDownloadError,
@@ -14,7 +14,6 @@ from java_download import (
     list_installed_java_majors,
 )
 from theme import theme_for_child
-from ui_focus import install_no_autoselect
 from tooltips import add_tooltip
 from ui_layout import WINDOW_PAD, tree_with_scrollbar
 from version_manager import InstalledVersion, delete_version, list_installed_versions

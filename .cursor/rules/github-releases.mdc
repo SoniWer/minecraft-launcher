@@ -9,7 +9,7 @@ alwaysApply: true
 
 ## Порядок
 
-1. Поднять `LAUNCHER_VERSION` в `version.py` (patch: 1.4.5 → 1.4.6).
+1. Поднять `LAUNCHER_VERSION` в `version.py` (patch: 1.6.16 → 1.6.17).
 2. Добавить пункт в `.github/RELEASE_NOTES.md` и обновить имя EXE в инструкции.
 3. Закоммитить, создать тег `v{версия}`, `git push origin main` и `git push origin v{версия}`.
 4. Дождаться успеха workflow «Релиз с EXE» (`gh run watch`).

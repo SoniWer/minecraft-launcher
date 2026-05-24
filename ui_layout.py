@@ -26,10 +26,8 @@ LABEL_GAP = (0, 10)
 # Кнопки в ряд
 BTN_GAP = 6
 
-# Главное окно: фиксированные высоты блока «Запуск», чтобы строки не прыгали
+# Главное окно: фиксированная высота строки статуса в «Запуск»
 LAUNCH_STATUS_H = 22
-LAUNCH_PATH_H = 34
-LAUNCH_PLAY_TIME_H = 18
 
 
 def ellipsize(text: str, max_len: int = 72) -> str:
@@ -70,18 +68,6 @@ def form_field(widget: ttk.Widget | tk.Widget, row: int, *, columnspan: int = 1)
         sticky="ew",
         pady=FORM_ROW_PY,
     )
-
-
-def form_hint(parent: ttk.Misc, row: int, variable: tk.Variable, *, columnspan: int = 2) -> ttk.Label:
-    lbl = ttk.Label(parent, textvariable=variable, style="Hint.TLabel")
-    lbl.grid(
-        row=row,
-        column=0,
-        columnspan=columnspan,
-        sticky="w",
-        pady=(0, FORM_ROW_PY + 2),
-    )
-    return lbl
 
 
 def app_header(parent: ttk.Misc, title: str, version: str) -> ttk.Frame:

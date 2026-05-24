@@ -10,7 +10,6 @@ import sys
 import threading
 import tkinter as tk
 import uuid
-import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -100,17 +99,8 @@ from launcher_update import (
     check_for_update,
     cleanup_stale_launcher_exes,
 )
+from loaders import LOADER_BY_NAME, LOADER_DISPLAY, MOD_LOADERS
 from version import LAUNCHER_VERSION
-
-MOD_LOADERS: list[tuple[str, str]] = [
-    ("vanilla", "Vanilla (без модов)"),
-    ("fabric", "Fabric"),
-    ("forge", "Forge"),
-    ("neoforge", "NeoForge"),
-    ("quilt", "Quilt"),
-]
-LOADER_BY_NAME = {display: lid for lid, display in MOD_LOADERS}
-LOADER_DISPLAY = {lid: display for lid, display in MOD_LOADERS}
 
 RAM_OPTIONS_GB = ("2", "4", "6", "8", "12", "16", "24", "32")
 FILTER_LABELS = ("Релизы", "Снапшоты", "Все")

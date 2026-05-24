@@ -24,6 +24,7 @@ hiddenimports = [
     "play_time",
     "version_sort",
     "builds",
+    "loaders",
     "build_backup",
     "deps_check",
     "extras_ui",
