@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -117,6 +118,11 @@ def pick_best_java(mc_version: str, installs: list[JavaInstall]) -> str | None:
     return installs[0].path if installs else None
 
 
+def java_major_for_path(java_path: str, installs: list[JavaInstall]) -> int | None:
+    install = next((j for j in installs if j.path == java_path), None)
+    return install.major if install else None
+
+
 def resolve_java_executable(
     mc_version: str,
     *,
@@ -131,6 +137,40 @@ def resolve_java_executable(
     if best:
         return best
     return minecraft_launcher_lib.utils.get_java_executable()
+
+
+def ensure_java_for_mc(
+    mc_version: str,
+    launcher_dir: Path,
+    *,
+    preferred_path: str = "",
+    installs: list[JavaInstall] | None = None,
+    on_status: Callable[[str], None] | None = None,
+) -> str:
+    """Подобрать Java для MC или скачать Temurin в папку лаунчера."""
+    need = required_java_major(mc_version)
+    pool = installs if installs is not None else list_java_installs(launcher_dir)
+
+    try:
+        from java_download import download_java, installed_java_path
+
+        bundled = installed_java_path(launcher_dir, need)
+        if bundled:
+            return str(bundled)
+
+        path = resolve_java_executable(
+            mc_version, preferred_path=preferred_path, installs=pool
+        )
+        if path and Path(path).exists():
+            major = java_major_for_path(path, pool)
+            if major is None or major >= need:
+                return path
+
+        return str(download_java(launcher_dir, need, on_status=on_status))
+    except ImportError:
+        return resolve_java_executable(
+            mc_version, preferred_path=preferred_path, installs=pool
+        )
 
 
 def java_combo_labels(installs: list[JavaInstall]) -> list[str]:

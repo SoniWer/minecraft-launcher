@@ -857,7 +857,7 @@ class ModrinthBrowser(tk.Toplevel):
         else:
             self.status_var.set(f"Сборка установлена: {result.filename}")
 
-        if self.on_modpack_installed and not result.skipped:
+        if self.on_modpack_installed:
             self.on_modpack_installed(result.profile)
 
         profile = result.profile

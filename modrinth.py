@@ -12,6 +12,8 @@ from urllib.parse import quote
 import requests
 
 MODRINTH_API = "https://api.modrinth.com/v2"
+_HTTP_SESSION: requests.Session | None = None
+_DOWNLOAD_CHUNK = 262_144
 
 
 def modrinth_user_agent() -> str:
@@ -64,9 +66,18 @@ def _headers() -> dict[str, str]:
     return {"User-Agent": USER_AGENT}
 
 
+def _http_session() -> requests.Session:
+    global _HTTP_SESSION
+    if _HTTP_SESSION is None:
+        session = requests.Session()
+        session.headers.update(_headers())
+        _HTTP_SESSION = session
+    return _HTTP_SESSION
+
+
 def _request(method: str, path: str, **kwargs: Any) -> Any:
     url = f"{MODRINTH_API}{path}"
-    response = requests.request(method, url, headers=_headers(), timeout=30, **kwargs)
+    response = _http_session().request(method, url, timeout=30, **kwargs)
     if response.status_code >= 400:
         raise ModrinthError(f"Modrinth API {response.status_code}: {response.text[:300]}")
     if not response.content:
@@ -526,12 +537,12 @@ def download_file(
     on_progress: Callable[[int, int | None], None] | None = None,
 ) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with requests.get(url, headers=_headers(), stream=True, timeout=120) as response:
+    with _http_session().get(url, stream=True, timeout=120) as response:
         response.raise_for_status()
         total = int(response.headers.get("Content-Length", 0)) or None
         downloaded = 0
         with destination.open("wb") as handle:
-            for chunk in response.iter_content(chunk_size=65536):
+            for chunk in response.iter_content(chunk_size=_DOWNLOAD_CHUNK):
                 if not chunk:
                     continue
                 handle.write(chunk)
@@ -747,6 +758,26 @@ def project_is_installed_modpack(game_dir: Path, project_id: str) -> bool:
     return is_modpack_installed(game_dir, project_id)
 
 
+def launch_version_for_game_dir(game_dir: Path) -> str:
+    """Версия запуска из кэша .mrpack (для сборок без launch_version в profile.json)."""
+    entries = load_installed_modpacks(game_dir)
+    if not entries:
+        return ""
+    cache_dir = game_dir / ".launcher" / "mrpacks"
+    for entry in reversed(entries):
+        filename = (entry.get("filename") or "").strip()
+        if not filename:
+            continue
+        mrpack_path = cache_dir / filename
+        if not mrpack_path.is_file():
+            continue
+        try:
+            return parse_mrpack_profile(mrpack_path).get("launch_version", "").strip()
+        except Exception:
+            continue
+    return ""
+
+
 def parse_mrpack_profile(mrpack_path: Path) -> dict[str, str]:
     import minecraft_launcher_lib.mrpack as mll_mrpack
 
@@ -755,21 +786,27 @@ def parse_mrpack_profile(mrpack_path: Path) -> dict[str, str]:
     mc_version = info.get("minecraftVersion", "")
 
     loader = "vanilla"
+    loader_version = ""
     with __import__("zipfile").ZipFile(mrpack_path, "r") as zf:
         index = json.loads(zf.read("modrinth.index.json"))
         deps = index.get("dependencies") or {}
         if "fabric-loader" in deps:
             loader = "fabric"
+            loader_version = str(deps["fabric-loader"])
         elif "quilt-loader" in deps:
             loader = "quilt"
+            loader_version = str(deps["quilt-loader"])
         elif "neoforge" in deps:
             loader = "neoforge"
+            loader_version = str(deps["neoforge"])
         elif "forge" in deps:
             loader = "forge"
+            loader_version = str(deps["forge"])
 
     return {
         "mc_version": mc_version,
         "loader": loader,
+        "loader_version": loader_version,
         "launch_version": launch_version,
         "name": info.get("name", ""),
     }

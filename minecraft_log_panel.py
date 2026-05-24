@@ -130,25 +130,28 @@ class MinecraftLogPanel(ttk.LabelFrame):
             self._poll_job = self.after(800, self._poll)
             return
 
-        if not self._fast_poll:
-            self._set_status("Запустите игру — лог появится после старта")
-            self._poll_job = self.after(900, self._poll)
-            return
-
         game_dir, shared_dir = self.get_log_dirs()
         path, hint = resolve_log_file(game_dir, shared_dir)
 
         if path != self._log_path:
             self._log_path = path
             self._log_pos = 0
-            if path is not None:
+            if path is not None and not self._fast_poll:
+                try:
+                    self._log_pos = max(0, path.stat().st_size - 16_000)
+                except OSError:
+                    self._log_pos = 0
+            elif path is not None:
                 try:
                     self._log_pos = path.stat().st_size
                 except OSError:
                     self._log_pos = 0
 
         if not path:
-            self._set_status(hint)
+            if self._fast_poll:
+                self._set_status(hint)
+            else:
+                self._set_status("Запустите игру — лог появится после старта")
         else:
             chunk, new_pos, err = read_log_incremental(path, self._log_pos)
             if err:
@@ -163,7 +166,7 @@ class MinecraftLogPanel(ttk.LabelFrame):
                 except OSError:
                     self._set_status(hint)
 
-        delay = 250 if self._fast_poll else 900
+        delay = 250 if self._fast_poll else 600
         self._poll_job = self.after(delay, self._poll)
 
     def _schedule_poll(self) -> None:

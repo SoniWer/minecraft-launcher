@@ -58,6 +58,7 @@ from game_logs import latest_crash_report, open_file as open_log_file
 from game_process import GameProcessTracker
 from java_manager import (
     JavaInstall,
+    ensure_java_for_mc,
     java_combo_labels,
     java_hint,
     label_to_path,
@@ -308,7 +309,9 @@ class MinecraftLauncherApp:
         self.loader_version_label = form_label(tab_build, 5, "Верс. загр.")
         self.loader_version_combo = ttk.Combobox(tab_build, state="disabled")
         form_field(self.loader_version_combo, 5)
-        self.loader_version_combo.bind("<<ComboboxSelected>>", self._on_settings_changed)
+        self.loader_version_combo.bind(
+            "<<ComboboxSelected>>", self._on_loader_version_changed
+        )
         self._update_loader_version_visibility()
 
         self.filter_var = tk.StringVar(value="release")
@@ -374,9 +377,21 @@ class MinecraftLauncherApp:
         lr = 0
 
         self.status_var = tk.StringVar(value="Загрузка...")
-        ttk.Label(launch, textvariable=self.status_var, style="Status.TLabel").grid(
-            row=lr, column=0, sticky="ew", pady=(0, 6)
+        self._launch_status_frame = tk.Frame(launch, height=42, bg=self._colors.bg)
+        self._launch_status_frame.grid(row=lr, column=0, sticky="ew", pady=(0, 6))
+        self._launch_status_frame.grid_propagate(False)
+        self._launch_status_label = tk.Label(
+            self._launch_status_frame,
+            textvariable=self.status_var,
+            anchor="nw",
+            justify="left",
+            wraplength=300,
+            height=2,
+            bg=self._colors.bg,
+            fg=self._colors.muted,
+            font=("Segoe UI", 9),
         )
+        self._launch_status_label.pack(fill="both", expand=True)
         lr += 1
         self.progress = ttk.Progressbar(launch, mode="determinate")
         self.progress.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
@@ -990,7 +1005,12 @@ class MinecraftLauncherApp:
             self.loader_version_label.grid_remove()
             self.loader_version_combo.grid_remove()
 
+    def _invalidate_modpack_launch(self) -> None:
+        if self.current_build:
+            self.current_build.launch_version = ""
+
     def _on_loader_changed(self, _event: object | None = None) -> None:
+        self._invalidate_modpack_launch()
         self._update_loader_version_visibility()
         self._update_content_menu_state()
         self._apply_filter()
@@ -999,7 +1019,12 @@ class MinecraftLauncherApp:
         self._update_build_summary()
         self._save_current_build()
 
+    def _on_loader_version_changed(self, _event: object | None = None) -> None:
+        self._invalidate_modpack_launch()
+        self._on_settings_changed()
+
     def _on_mc_version_changed(self, _event: object | None = None) -> None:
+        self._invalidate_modpack_launch()
         self._refresh_loader_versions_async()
         self._update_java_hint()
         self._update_ram_hint()
@@ -1092,6 +1117,11 @@ class MinecraftLauncherApp:
         self.settings.save(LAUNCHER_DIR)
         self._colors = apply_theme(self.root, dark=self.settings.dark_theme)
         style_text_widget(self.log_panel.text, self._colors)
+        if hasattr(self, "_launch_status_frame"):
+            self._launch_status_frame.configure(bg=self._colors.bg)
+            self._launch_status_label.configure(
+                bg=self._colors.bg, fg=self._colors.muted
+            )
 
     def _export_backup(self) -> None:
         if not self.current_build:
@@ -1303,6 +1333,8 @@ class MinecraftLauncherApp:
             return
         mc_version = profile.get("mc_version", "").strip()
         loader = profile.get("loader", "vanilla").strip()
+        loader_version = profile.get("loader_version", "").strip()
+        launch_version = profile.get("launch_version", "").strip()
         if mc_version:
             self.current_build.mc_version = mc_version
             self.version_combo.set(mc_version)
@@ -1310,13 +1342,19 @@ class MinecraftLauncherApp:
             self.loader_var.set(LOADER_DISPLAY[loader])
         elif loader in LOADER_BY_NAME:
             self.loader_var.set(LOADER_BY_NAME[loader])
+        if loader_version:
+            self.current_build.loader_version = loader_version
+            self.loader_version_combo.set(loader_version)
+        if launch_version:
+            self.current_build.launch_version = launch_version
         self._update_loader_version_visibility()
         self._apply_filter()
         self._refresh_loader_versions_async()
         self._save_current_build()
+        lv_note = f", запуск: {launch_version}" if launch_version else ""
         self.status_var.set(
-            f"Сборка «{self.current_build.name}» обновлена под modpack "
-            f"({mc_version}, {loader})"
+            f"Сборка «{self.current_build.name}» — modpack "
+            f"{mc_version or '?'} / {loader}{lv_note}"
         )
 
     def _set_busy(self, busy: bool) -> None:
@@ -1423,10 +1461,17 @@ class MinecraftLauncherApp:
             return
         if versions:
             self.loader_version_combo["values"] = versions
-            current = self.loader_version_combo.get()
-            self.loader_version_combo.set(
-                current if current in versions else versions[0]
-            )
+            preferred = ""
+            if self.current_build and self.current_build.loader_version.strip():
+                preferred = self.current_build.loader_version.strip()
+            current = self.loader_version_combo.get().strip()
+            if preferred in versions:
+                pick = preferred
+            elif current in versions:
+                pick = current
+            else:
+                pick = versions[0]
+            self.loader_version_combo.set(pick)
             self.loader_version_combo.configure(state="readonly")
         else:
             self.loader_version_combo["values"] = []
@@ -1435,7 +1480,15 @@ class MinecraftLauncherApp:
 
     def _make_callback(self) -> dict:
         def set_status(text: str) -> None:
-            self.root.after(0, lambda t=text: self.status_var.set(t))
+            short = text if len(text) <= 96 else text[:93] + "…"
+
+            def apply(t: str = short) -> None:
+                if t == getattr(self, "_last_launch_status", ""):
+                    return
+                self._last_launch_status = t
+                self.status_var.set(t)
+
+            self.root.after(0, apply)
 
         def set_max(value: int) -> None:
             self.root.after(0, lambda v=value: self.progress.configure(maximum=v))
@@ -1449,7 +1502,33 @@ class MinecraftLauncherApp:
             "setProgress": set_progress,
         }
 
+    def _modpack_launch_version(self) -> str:
+        if not self.current_build:
+            return ""
+        stored = (self.current_build.launch_version or "").strip()
+        if stored:
+            return stored
+        from modrinth import launch_version_for_game_dir
+
+        discovered = launch_version_for_game_dir(self._game_dir())
+        if discovered:
+            self.current_build.launch_version = discovered
+            save_build(self.current_build, LAUNCHER_DIR)
+        return discovered
+
     def _resolve_launch_version(self, mc_version: str, callback: dict) -> str:
+        modpack_id = self._modpack_launch_version()
+        if modpack_id and minecraft_launcher_lib.utils.is_version_valid(
+            modpack_id, self.shared_dir
+        ):
+            self.root.after(
+                0,
+                lambda vid=modpack_id: self.status_var.set(
+                    f"Версия modpack готова ({vid})"
+                ),
+            )
+            return modpack_id
+
         loader_id = self._loader_id()
         if loader_id == "vanilla":
             minecraft_launcher_lib.install.install_minecraft_version(
@@ -1492,7 +1571,6 @@ class MinecraftLauncherApp:
             messagebox.showwarning("Внимание", "Введите никнейм.")
             return
 
-        java_exe = self._resolve_java_path(mc_version)
         ram_gb = self._parse_ram_gb()
         if ram_gb is None:
             messagebox.showwarning("Внимание", "Укажите объём ОЗУ от 1 до 64 ГБ.")
@@ -1506,9 +1584,16 @@ class MinecraftLauncherApp:
         build_name = self.current_build.name
         extra_jvm = parse_jvm_args(self.jvm_args_var.get().strip())
 
-        version_installed = minecraft_launcher_lib.utils.is_version_valid(
+        modpack_launch_ready = bool(
+            self._modpack_launch_version()
+            and minecraft_launcher_lib.utils.is_version_valid(
+                self._modpack_launch_version(), self.shared_dir
+            )
+        )
+        version_installed = modpack_launch_ready or minecraft_launcher_lib.utils.is_version_valid(
             mc_version, self.shared_dir
         )
+        java_exe = self._resolve_java_path(mc_version)
         if loader_id != "vanilla":
             mod_loader = minecraft_launcher_lib.mod_loader.get_mod_loader(loader_id)
             if not mod_loader.is_minecraft_version_supported(mc_version):
@@ -1527,6 +1612,7 @@ class MinecraftLauncherApp:
             java_installs=self.java_installs,
             game_dir=game_dir,
             version_installed=version_installed,
+            modpack_launch_ready=modpack_launch_ready,
         )
         if has_errors(checks):
             messagebox.showerror(
@@ -1552,6 +1638,18 @@ class MinecraftLauncherApp:
         def worker() -> None:
             try:
                 callback = self._make_callback()
+                java_exe = ensure_java_for_mc(
+                    mc_version,
+                    LAUNCHER_DIR,
+                    preferred_path=self._selected_java_path(),
+                    installs=self.java_installs,
+                    on_status=callback["setStatus"],
+                )
+                self.root.after(0, self._load_java_installs_async)
+                if self.current_build:
+                    self.current_build.java_path = java_exe
+                    save_build(self.current_build, LAUNCHER_DIR)
+
                 launch_version = self._resolve_launch_version(mc_version, callback)
                 options = build_launch_options(
                     username=username,

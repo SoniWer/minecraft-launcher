@@ -33,6 +33,8 @@ def run_prelaunch_checks(
     java_installs: list[JavaInstall],
     game_dir: Path,
     version_installed: bool,
+    modpack_launch_ready: bool = False,
+    auto_java: bool = True,
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
 
@@ -40,12 +42,16 @@ def run_prelaunch_checks(
         results.append(CheckResult("error", "Не выбрана версия Minecraft."))
         return results
 
-    if loader_id != "vanilla" and not loader_version.strip():
+    if (
+        loader_id != "vanilla"
+        and not loader_version.strip()
+        and not modpack_launch_ready
+    ):
         results.append(
             CheckResult("error", "Не выбрана версия мод-загрузчика.")
         )
 
-    if not version_installed and loader_id == "vanilla":
+    if not version_installed and loader_id == "vanilla" and not modpack_launch_ready:
         results.append(
             CheckResult(
                 "warning",
@@ -55,11 +61,27 @@ def run_prelaunch_checks(
 
     need_java = required_java_major(mc_version)
     have_java = _java_major_from_path(java_path, java_installs)
+    java_missing = not java_path or not Path(java_path).exists()
     if have_java is not None and have_java < need_java:
+        if auto_java:
+            results.append(
+                CheckResult(
+                    "info",
+                    f"При запуске будет установлена Java {need_java} (сейчас Java {have_java}).",
+                )
+            )
+        else:
+            results.append(
+                CheckResult(
+                    "error",
+                    f"Java {have_java} не подходит для {mc_version} (нужна {need_java}+).",
+                )
+            )
+    elif java_missing and auto_java:
         results.append(
             CheckResult(
-                "error",
-                f"Java {have_java} не подходит для {mc_version} (нужна {need_java}+).",
+                "info",
+                f"При запуске будет установлена Java {need_java} для Minecraft {mc_version}.",
             )
         )
     elif have_java is None and java_path:

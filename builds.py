@@ -35,6 +35,7 @@ class Build:
     edition: str = "java"
     java_path: str = ""
     jvm_args: str = ""
+    launch_version: str = ""
     play_time_seconds: int = 0
     launch_count: int = 0
 
