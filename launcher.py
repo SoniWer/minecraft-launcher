@@ -54,12 +54,6 @@ from install_status import format_install_status
 from drag_drop import enable_jar_drop
 from play_time import format_play_time
 from version_sort import sort_with_favorites
-from game_logs import (
-    latest_crash_report,
-    log_has_fatal_tail,
-    log_issue_key,
-    resolve_log_file,
-)
 from game_process import GameProcessTracker
 from java_manager import (
     JavaInstall,
@@ -213,7 +207,6 @@ class MinecraftLauncherApp:
         self._load_java_installs_async()
         self._load_versions_async()
         self._apply_username_combo()
-        self.root.after(400, self._check_crash_prompt)
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
         self.root.after(0, self._center_main_window)
@@ -573,7 +566,6 @@ class MinecraftLauncherApp:
             save_build(self.current_build, LAUNCHER_DIR)
             self._update_play_time_label()
         self._sync_discord_presence(running=False)
-        self.root.after(500, self._check_crash_prompt)
         if exit_code not in (None, 0):
             self.status_var.set(f"Игра завершилась (код {exit_code})")
 
@@ -1747,25 +1739,6 @@ class MinecraftLauncherApp:
         finally:
             self.root.destroy()
 
-    def _crash_key(self, crash: Path) -> str:
-        return f"{crash.resolve()}:{int(crash.stat().st_mtime)}"
-
-    def _new_issue_key(self) -> tuple[str, int] | None:
-        """Ключ и вкладка (0 crash, 1 лог игры) для ещё не показанного сбоя."""
-        game_dir = self._game_dir()
-        crash = latest_crash_report(game_dir)
-        if crash and crash.is_file():
-            key = self._crash_key(crash)
-            if key != self.settings.last_seen_crash_key:
-                return key, 0
-
-        log_path, _hint = resolve_log_file(game_dir, Path(self.shared_dir))
-        if log_path and log_path.is_file() and log_has_fatal_tail(log_path):
-            key = log_issue_key(log_path)
-            if key != self.settings.last_seen_crash_key:
-                return key, 1
-        return None
-
     def _open_logs_and_crashes(self, *, initial_tab: int = 0) -> None:
         from crash_reports_ui import LogsAndCrashesWindow
 
@@ -1775,25 +1748,6 @@ class MinecraftLauncherApp:
             get_shared_dir=lambda: Path(self.shared_dir),
             initial_tab=initial_tab,
         )
-
-    def _check_crash_prompt(self) -> None:
-        found = self._new_issue_key()
-        if not found:
-            return
-        key, tab = found
-        label = (
-            "Найден crash-report Minecraft."
-            if tab == 0
-            else "В логе игры есть ошибка (загрузчик / моды / запуск)."
-        )
-        if messagebox.askyesno(
-            "Сбой",
-            f"{label}\n\nОткрыть «Логи и сбои»?",
-            parent=self.root,
-        ):
-            self._open_logs_and_crashes(initial_tab=tab)
-        self.settings.last_seen_crash_key = key
-        self.settings.save(LAUNCHER_DIR)
 
     def _show_changelog_if_needed(self) -> None:
         if self.settings.last_seen_launcher_version == LAUNCHER_VERSION:
