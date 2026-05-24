@@ -15,7 +15,7 @@ from modrinth import (
     scan_mod_updates,
 )
 from theme import theme_for_child
-from ui_layout import WINDOW_PAD, autosize_toplevel, toplevel_shell, tree_with_scrollbar
+from ui_layout import autosize_toplevel, toplevel_shell, tree_with_scrollbar
 
 
 class ModUpdatesWindow(tk.Toplevel):

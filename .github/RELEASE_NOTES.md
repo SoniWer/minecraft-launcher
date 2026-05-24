@@ -2,6 +2,11 @@
 
 Файл **MinecraftLauncher-vX.Y.Z.exe** — готовый лаунчер для Windows (Python не нужен).
 
+## Что нового в v1.6.1
+
+- Discord: запрос согласия при первом запуске, без API-ключей в settings.json
+- Подключение к локальному клиенту Discord (нужен только запущенный Discord)
+
 ## Что нового в v1.6.0
 
 - Modrinth: по умолчанию тип «Моды»
@@ -50,7 +55,7 @@
 
 ## Установка
 
-1. Скачайте `MinecraftLauncher-v1.6.0.exe` из раздела **Assets** ниже.
+1. Скачайте `MinecraftLauncher-v1.6.1.exe` из раздела **Assets** ниже.
 2. Положите в любую папку и запустите.
 
 Полная инструкция: [README](https://github.com/SoniWer/minecraft-launcher/blob/main/README.md)

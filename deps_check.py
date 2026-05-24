@@ -35,7 +35,6 @@ LOCAL_MODULES: tuple[str, ...] = (
     "ui_async",
     "modrinth",
     "version_manager",
-    "log_viewer",
     "modrinth_ui",
     "pack_manager_ui",
     "install_status",

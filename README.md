@@ -70,19 +70,15 @@
 **Антивирус ругается?**  
 Добавьте папку с EXE в исключения (сборка без подписи Microsoft).
 
-**Discord Rich Presence**  
-В [Discord Developer Portal](https://discord.com/developers/applications) создайте приложение и скопируйте **Application ID** в `settings.json`:
-
-```json
-"discord_presence_enabled": true,
-"discord_client_id": "ВАШ_ID"
-```
-
-Должен быть запущен клиент Discord. Без ID статус в Discord не показывается.
+**Discord**  
+При первом запуске (или в **Утилиты → Интеграция с Discord**) лаунчер спросит согласие и подключится к программе Discord на ПК. API-ключи вводить не нужно. Нужен запущенный Discord и включённая опция «Показывать текущую игру в статусе».
 
 ---
 
 ## Что нового
+
+### v1.6.1
+- Discord: согласие при первом запуске, без `discord_client_id` в settings
 
 ### v1.6.0
 - Modrinth по умолчанию «Моды»; обновление всех модов; проверка дубликатов

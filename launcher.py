@@ -208,7 +208,7 @@ class MinecraftLauncherApp:
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
         self.root.after(0, self._center_main_window)
-        self.root.after(800, self._setup_discord_presence)
+        self.root.after(1500, self._offer_discord_integration)
 
     def _center_main_window(self) -> None:
         w = getattr(self, "_window_w", 980)
@@ -684,8 +684,8 @@ class MinecraftLauncherApp:
         menu.add_command(label="Скачать Java", command=self._download_java)
         menu.add_command(label="Тема", command=self._toggle_theme)
         menu.add_command(
-            label="Discord Rich Presence",
-            command=self._toggle_discord_presence,
+            label="Интеграция с Discord",
+            command=self._discord_integration_menu,
         )
         menu.add_command(label="Обновление лаунчера", command=self._check_updates_manual)
         mb["menu"] = menu
@@ -1732,30 +1732,60 @@ class MinecraftLauncherApp:
             parent=self.root,
         )
 
-    def _discord_client_id(self) -> str:
-        import os
-
-        return (
-            self.settings.discord_client_id.strip()
-            or os.environ.get("DISCORD_CLIENT_ID", "").strip()
+    def _offer_discord_integration(self) -> None:
+        if self.settings.discord_presence_consent:
+            if self.settings.discord_presence_enabled:
+                self._connect_discord_presence()
+            return
+        if not discord_presence.is_configured():
+            return
+        agreed = messagebox.askyesno(
+            "Интеграция с Discord",
+            "Показывать в Discord, что вы в лаунчере или в Minecraft?\n\n"
+            "Лаунчер подключается к программе Discord на вашем ПК.\n"
+            "Никакие API-ключи вводить не нужно.\n\n"
+            "Отключить можно в Утилиты → Интеграция с Discord.",
+            parent=self.root,
         )
+        self.settings.discord_presence_consent = True
+        self.settings.discord_presence_enabled = agreed
+        self.settings.save(LAUNCHER_DIR)
+        if agreed:
+            self._connect_discord_presence()
 
-    def _setup_discord_presence(self) -> None:
+    def _connect_discord_presence(self, *, show_errors: bool = False) -> None:
         if not self.settings.discord_presence_enabled:
             return
-        client_id = self._discord_client_id()
-        if not client_id:
-            log_info(
-                "Discord: укажите discord_client_id в settings.json "
-                "или переменную DISCORD_CLIENT_ID"
-            )
+        if not discord_presence.is_configured():
+            if show_errors:
+                messagebox.showinfo(
+                    "Discord",
+                    "В этой сборке лаунчера интеграция с Discord не настроена.",
+                    parent=self.root,
+                )
             return
 
-        def worker() -> None:
-            if discord_presence.connect(client_id):
-                discord_presence.set_idle(version=LAUNCHER_VERSION)
+        def on_done(ok: bool) -> None:
+            def apply() -> None:
+                if ok:
+                    discord_presence.set_idle(version=LAUNCHER_VERSION)
+                    log_info("Discord Rich Presence connected")
+                    return
+                err = discord_presence.last_connect_error()
+                log_info(f"Discord Rich Presence: {err}")
+                if show_errors:
+                    messagebox.showwarning(
+                        "Discord",
+                        "Не удалось подключиться к Discord.\n\n"
+                        f"{err}\n\n"
+                        "Убедитесь, что Discord запущен и в настройках включено "
+                        "«Показывать текущую игру в статусе».",
+                        parent=self.root,
+                    )
 
-        threading.Thread(target=worker, daemon=True).start()
+            self.root.after(0, apply)
+
+        discord_presence.connect_async(on_done=on_done)
 
     def _sync_discord_presence(self, *, running: bool) -> None:
         if not self.settings.discord_presence_enabled or not discord_presence.is_connected():
@@ -1774,20 +1804,36 @@ class MinecraftLauncherApp:
         if self.settings.discord_presence_enabled and discord_presence.is_connected():
             discord_presence.set_installing(task=task)
 
-    def _toggle_discord_presence(self) -> None:
-        self.settings.discord_presence_enabled = not self.settings.discord_presence_enabled
-        self.settings.save(LAUNCHER_DIR)
-        if self.settings.discord_presence_enabled:
-            self._setup_discord_presence()
+    def _discord_integration_menu(self) -> None:
+        if not discord_presence.is_configured():
             messagebox.showinfo(
                 "Discord",
-                "Rich Presence включён.\n"
-                "Нужен запущенный Discord и Application ID в settings.json.",
+                "В этой сборке лаунчера интеграция с Discord пока недоступна.",
                 parent=self.root,
             )
-        else:
-            discord_presence.disconnect()
-            messagebox.showinfo("Discord", "Rich Presence выключен.", parent=self.root)
+            return
+        if self.settings.discord_presence_enabled:
+            if messagebox.askyesno(
+                "Discord",
+                "Отключить показ статуса в Discord?",
+                parent=self.root,
+            ):
+                self.settings.discord_presence_enabled = False
+                self.settings.discord_presence_consent = True
+                self.settings.save(LAUNCHER_DIR)
+                discord_presence.disconnect()
+                messagebox.showinfo("Discord", "Интеграция отключена.", parent=self.root)
+            return
+        if messagebox.askyesno(
+            "Интеграция с Discord",
+            "Показывать в Discord статус лаунчера и игры?\n"
+            "Ключи не нужны — только запущенный Discord.",
+            parent=self.root,
+        ):
+            self.settings.discord_presence_enabled = True
+            self.settings.discord_presence_consent = True
+            self.settings.save(LAUNCHER_DIR)
+            self._connect_discord_presence(show_errors=True)
 
     def _export_partial(self, *, mods: bool = False, saves: bool = False) -> None:
         if not self.current_build:

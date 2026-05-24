@@ -5,6 +5,7 @@ java/
 tools/
 settings.json
 curseforge.key
+discord_application_id.txt
 launcher.log
 _launcher_update.ps1
 _launcher_update.bat

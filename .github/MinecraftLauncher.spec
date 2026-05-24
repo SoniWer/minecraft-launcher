@@ -7,9 +7,12 @@ from PyInstaller.utils.hooks import collect_all
 root = Path(SPECPATH).resolve().parent
 
 _release_notes = root / ".github" / "RELEASE_NOTES.md"
+_discord_app_id = root / "discord_application_id.txt"
 datas: list = []
 if _release_notes.is_file():
     datas.append((str(_release_notes), "."))
+if _discord_app_id.is_file():
+    datas.append((str(_discord_app_id), "."))
 binaries: list = []
 icon_file = str(root / "launcher.ico") if (root / "launcher.ico").is_file() else None
 
@@ -30,7 +33,6 @@ hiddenimports = [
     "java_manager",
     "jvm_args",
     "jvm_presets",
-    "log_viewer",
     "modrinth",
     "modrinth_ui",
     "pack_manager_ui",

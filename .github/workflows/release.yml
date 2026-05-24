@@ -29,6 +29,19 @@ jobs:
         run: |
           pip install -r requirements.txt pyinstaller pillow
 
+      - name: Discord Application ID (Rich Presence)
+        shell: pwsh
+        run: |
+          $id = "${{ secrets.DISCORD_APPLICATION_ID }}".Trim()
+          if ($id) {
+            Set-Content -Path discord_application_id.txt -Value $id -Encoding utf8NoBOM
+            Write-Host "Discord Application ID записан из секрета репозитория"
+          } elseif (Test-Path discord_application_id.txt) {
+            Write-Host "Используется discord_application_id.txt из репозитория"
+          } else {
+            Write-Host "Discord ID не задан — Rich Presence будет недоступен в EXE"
+          }
+
       - name: Создание иконки
         env:
           PYTHONIOENCODING: utf-8
