@@ -8,11 +8,17 @@ root = Path(SPECPATH).resolve().parent
 
 _release_notes = root / ".github" / "RELEASE_NOTES.md"
 _discord_app_id = root / "discord_application_id.txt"
+_discord_app_json = root / "discord_app.json"
+_discord_public_key = root / "discord_public_key.txt"
 datas: list = []
 if _release_notes.is_file():
     datas.append((str(_release_notes), "."))
 if _discord_app_id.is_file():
     datas.append((str(_discord_app_id), "."))
+if _discord_app_json.is_file():
+    datas.append((str(_discord_app_json), "."))
+if _discord_public_key.is_file():
+    datas.append((str(_discord_public_key), "."))
 binaries: list = []
 icon_file = str(root / "launcher.ico") if (root / "launcher.ico").is_file() else None
 

@@ -24,7 +24,6 @@ class LauncherSettings:
     last_seen_launcher_version: str = ""
     show_game_log: bool = False
     discord_presence_enabled: bool = False
-    discord_presence_consent: bool = False
 
     @classmethod
     def load(cls, launcher_dir: Path) -> LauncherSettings:
@@ -45,14 +44,9 @@ class LauncherSettings:
                     kwargs[key] = val if isinstance(val, list) else []
                 elif key in ("window_width", "window_height"):
                     kwargs[key] = int(val) if isinstance(val, (int, float)) else 0
-                elif key in (
-                    "show_game_log",
-                    "discord_presence_enabled",
-                    "discord_presence_consent",
-                ):
+                elif key in ("show_game_log", "discord_presence_enabled"):
                     kwargs[key] = bool(val)
-                elif key == "discord_client_id":
-                    # Устарело: ID вшит в лаунчер, настройку игнорируем.
+                elif key in ("discord_client_id", "discord_presence_consent"):
                     pass
                 elif key == "last_seen_launcher_version":
                     kwargs[key] = str(val) if val else ""

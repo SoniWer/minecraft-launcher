@@ -208,7 +208,8 @@ class MinecraftLauncherApp:
         self.root.after(600, self._show_changelog_if_needed)
         self.root.after(1200, self._check_updates_async)
         self.root.after(0, self._center_main_window)
-        self.root.after(1500, self._offer_discord_integration)
+        if self.settings.discord_presence_enabled:
+            self.root.after(800, self._connect_discord_presence)
 
     def _center_main_window(self) -> None:
         w = getattr(self, "_window_w", 980)
@@ -397,9 +398,27 @@ class MinecraftLauncherApp:
         )
         lr += 1
 
+        action_row = ttk.Frame(launch)
+        action_row.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
+        action_row.columnconfigure(0, weight=1)
+        action_row.columnconfigure(1, weight=1)
         ttk.Button(
-            launch, text="Каталог Modrinth", style="Tool.TButton", command=self._open_modrinth
-        ).grid(row=lr, column=0, sticky="ew", pady=(0, 10))
+            action_row,
+            text="Каталог Modrinth",
+            style="Tool.TButton",
+            command=self._open_modrinth,
+        ).grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
+        self.discord_btn = ttk.Button(
+            action_row,
+            text="Discord",
+            style="Tool.TButton",
+            command=self._on_discord_button,
+        )
+        self.discord_btn.grid(row=0, column=1, sticky="ew")
+        add_tooltip(
+            self.discord_btn,
+            "Статус в Discord (запущенный Discord, без ввода ключей)",
+        )
         lr += 1
 
         self.crash_bar = ttk.Frame(launch)
@@ -468,6 +487,7 @@ class MinecraftLauncherApp:
 
         self._register_tooltips()
         self._update_content_menu_state()
+        self._update_discord_button()
         self.root.after(50, self._fit_window_to_content)
 
     def _ensure_window_height(self, min_h: int) -> None:
@@ -683,10 +703,6 @@ class MinecraftLauncherApp:
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
         menu.add_command(label="Скачать Java", command=self._download_java)
         menu.add_command(label="Тема", command=self._toggle_theme)
-        menu.add_command(
-            label="Интеграция с Discord",
-            command=self._discord_integration_menu,
-        )
         menu.add_command(label="Обновление лаунчера", command=self._check_updates_manual)
         mb["menu"] = menu
         self.btn_update = mb
@@ -1732,45 +1748,64 @@ class MinecraftLauncherApp:
             parent=self.root,
         )
 
-    def _offer_discord_integration(self) -> None:
-        if self.settings.discord_presence_consent:
-            if self.settings.discord_presence_enabled:
-                self._connect_discord_presence()
+    def _update_discord_button(self) -> None:
+        if not hasattr(self, "discord_btn"):
             return
+        if discord_presence.is_connected():
+            self.discord_btn.configure(text="Discord ●")
+        elif self.settings.discord_presence_enabled:
+            self.discord_btn.configure(text="Discord …")
+        else:
+            self.discord_btn.configure(text="Discord")
+
+    def _on_discord_button(self) -> None:
+        if discord_presence.is_connected():
+            discord_presence.disconnect()
+            self.settings.discord_presence_enabled = False
+            self.settings.save(LAUNCHER_DIR)
+            self._update_discord_button()
+            self.status_var.set("Discord отключён")
+            return
+
         if not discord_presence.is_configured():
+            hint = discord_presence.configuration_hint()
+            messagebox.showinfo(
+                "Discord",
+                "Статус в Discord пока недоступен в этой сборке.\n\n" + hint,
+                parent=self.root,
+            )
             return
-        agreed = messagebox.askyesno(
-            "Интеграция с Discord",
-            "Показывать в Discord, что вы в лаунчере или в Minecraft?\n\n"
-            "Лаунчер подключается к программе Discord на вашем ПК.\n"
-            "Никакие API-ключи вводить не нужно.\n\n"
-            "Отключить можно в Утилиты → Интеграция с Discord.",
-            parent=self.root,
-        )
-        self.settings.discord_presence_consent = True
-        self.settings.discord_presence_enabled = agreed
+
+        self.settings.discord_presence_enabled = True
         self.settings.save(LAUNCHER_DIR)
-        if agreed:
-            self._connect_discord_presence()
+        self.status_var.set("Подключение к Discord…")
+        self._connect_discord_presence(show_errors=True)
 
     def _connect_discord_presence(self, *, show_errors: bool = False) -> None:
         if not self.settings.discord_presence_enabled:
             return
+        if not self.settings.discord_presence_enabled:
+            return
         if not discord_presence.is_configured():
             if show_errors:
+                hint = discord_presence.configuration_hint()
                 messagebox.showinfo(
                     "Discord",
-                    "В этой сборке лаунчера интеграция с Discord не настроена.",
+                    "Статус в Discord недоступен.\n\n" + hint,
                     parent=self.root,
                 )
             return
 
         def on_done(ok: bool) -> None:
             def apply() -> None:
+                self._update_discord_button()
                 if ok:
                     discord_presence.set_idle(version=LAUNCHER_VERSION)
                     log_info("Discord Rich Presence connected")
+                    self.status_var.set("Discord подключён")
                     return
+                self.settings.discord_presence_enabled = False
+                self.settings.save(LAUNCHER_DIR)
                 err = discord_presence.last_connect_error()
                 log_info(f"Discord Rich Presence: {err}")
                 if show_errors:
@@ -1782,6 +1817,7 @@ class MinecraftLauncherApp:
                         "«Показывать текущую игру в статусе».",
                         parent=self.root,
                     )
+                self.status_var.set("Discord не подключён")
 
             self.root.after(0, apply)
 
@@ -1803,37 +1839,6 @@ class MinecraftLauncherApp:
     def _sync_discord_presence_installing(self, task: str) -> None:
         if self.settings.discord_presence_enabled and discord_presence.is_connected():
             discord_presence.set_installing(task=task)
-
-    def _discord_integration_menu(self) -> None:
-        if not discord_presence.is_configured():
-            messagebox.showinfo(
-                "Discord",
-                "В этой сборке лаунчера интеграция с Discord пока недоступна.",
-                parent=self.root,
-            )
-            return
-        if self.settings.discord_presence_enabled:
-            if messagebox.askyesno(
-                "Discord",
-                "Отключить показ статуса в Discord?",
-                parent=self.root,
-            ):
-                self.settings.discord_presence_enabled = False
-                self.settings.discord_presence_consent = True
-                self.settings.save(LAUNCHER_DIR)
-                discord_presence.disconnect()
-                messagebox.showinfo("Discord", "Интеграция отключена.", parent=self.root)
-            return
-        if messagebox.askyesno(
-            "Интеграция с Discord",
-            "Показывать в Discord статус лаунчера и игры?\n"
-            "Ключи не нужны — только запущенный Discord.",
-            parent=self.root,
-        ):
-            self.settings.discord_presence_enabled = True
-            self.settings.discord_presence_consent = True
-            self.settings.save(LAUNCHER_DIR)
-            self._connect_discord_presence(show_errors=True)
 
     def _export_partial(self, *, mods: bool = False, saves: bool = False) -> None:
         if not self.current_build:
