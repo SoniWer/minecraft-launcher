@@ -25,6 +25,23 @@ def java_install_dir(launcher_dir: Path, major: int) -> Path:
     return launcher_dir / "java" / f"jdk-{major}"
 
 
+def list_installed_java_majors(launcher_dir: Path) -> list[int]:
+    root = launcher_dir / "java"
+    if not root.is_dir():
+        return []
+    majors: list[int] = []
+    for path in root.iterdir():
+        if not path.is_dir():
+            continue
+        name = path.name
+        if name.startswith("jdk-"):
+            try:
+                majors.append(int(name[4:].split(".")[0]))
+            except ValueError:
+                continue
+    return sorted(set(majors))
+
+
 def installed_java_path(launcher_dir: Path, major: int) -> Path | None:
     root = java_install_dir(launcher_dir, major)
     if not root.is_dir():

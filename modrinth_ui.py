@@ -790,32 +790,16 @@ class ModrinthBrowser(tk.Toplevel):
             if self.on_auto_backup:
                 self.on_auto_backup()
             if self.on_create_build_for_modpack:
-                choice = messagebox.askyesnocancel(
-                    "Установка modpack",
-                    f"«{title}»\n\n"
-                    "Да — новая сборка\n"
-                    "Нет — текущая сборка (содержимое может быть перезаписано)\n"
-                    "Отмена",
-                    parent=self,
-                )
-                if choice is None:
+                try:
+                    install_game_dir = self.on_create_build_for_modpack(title)
+                except Exception as exc:
+                    messagebox.showerror(
+                        "Ошибка",
+                        f"Не удалось создать сборку:\n{exc}",
+                        parent=self,
+                    )
                     return
-                if choice:
-                    try:
-                        install_game_dir = self.on_create_build_for_modpack(title)
-                    except Exception as exc:
-                        messagebox.showerror(
-                            "Ошибка",
-                            f"Не удалось создать сборку:\n{exc}",
-                            parent=self,
-                        )
-                        return
-                    self.status_var.set(f"Новая сборка — установка «{title}»...")
-                else:
-                    install_game_dir = self.get_game_dir()
-                    self.status_var.set(f"Установка в текущую сборку: {title}...")
-            else:
-                self.status_var.set(f"Установка: {title}...")
+                self.status_var.set(f"Новая сборка — установка «{title}»...")
 
         self._set_busy(True)
         self.progress.configure(mode="determinate", maximum=100, value=0)

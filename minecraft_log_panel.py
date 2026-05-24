@@ -64,15 +64,20 @@ class MinecraftLogPanel(ttk.LabelFrame):
 
         self._schedule_poll()
 
-    def set_fast_poll(self, enabled: bool) -> None:
-        self._fast_poll = enabled
+    def begin_game_session(self) -> None:
+        """Очистить панель один раз при старте Minecraft."""
+        self._fast_poll = True
         self._log_path = None
         self._log_pos = 0
+        self._stick_to_bottom = True
         self._clear_view()
+        self._set_status("Ожидание записей в лог…")
+
+    def set_fast_poll(self, enabled: bool) -> None:
         if enabled:
-            self._set_status("Ожидание записей в лог…")
-        else:
-            self._set_status("Запустите игру — лог появится после старта")
+            return
+        self._fast_poll = False
+        self._set_status("Запустите игру — лог появится после старта")
 
     def reset_source(self) -> None:
         self._log_path = None

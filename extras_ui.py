@@ -7,17 +7,19 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from java_download import JavaDownloadError, download_java, installed_java_path
+from java_download import (
+    JavaDownloadError,
+    download_java,
+    installed_java_path,
+    list_installed_java_majors,
+)
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
 from tooltips import add_tooltip
-from ui_layout import (
-    BOTTOM_PAD,
-    WINDOW_PAD,
-    setup_toplevel_window,
-    tree_with_scrollbar,
-)
+from ui_layout import WINDOW_PAD, tree_with_scrollbar
 from version_manager import InstalledVersion, delete_version, list_installed_versions
+
+JAVA_MAJOR_CHOICES = (8, 17, 21)
 
 
 class VersionManagerWindow(tk.Toplevel):
@@ -26,7 +28,6 @@ class VersionManagerWindow(tk.Toplevel):
         self.minecraft_dir = minecraft_dir
         self.title("Установленные версии Minecraft")
         self.geometry("600x480")
-        self.minsize(520, 420)
 
         shell = ttk.Frame(self, padding=WINDOW_PAD)
         shell.pack(fill="both", expand=True)
@@ -109,46 +110,93 @@ class JavaDownloadDialog(tk.Toplevel):
         parent: tk.Tk,
         *,
         launcher_dir: Path,
-        mc_version: str,
+        suggested_major: int | None = None,
+        mc_version: str = "",
         on_installed,
     ) -> None:
         super().__init__(parent)
         self.launcher_dir = launcher_dir
         self.on_installed = on_installed
-        from java_manager import required_java_major
 
-        self.major = required_java_major(mc_version)
+        if suggested_major is None and mc_version.strip():
+            from java_manager import required_java_major
+
+            suggested_major = required_java_major(mc_version)
+        if suggested_major not in JAVA_MAJOR_CHOICES:
+            suggested_major = 21
 
         self.title("Скачать Java")
-        self.geometry("460x170")
+        self.geometry("480x220")
         body = ttk.Frame(self, padding=WINDOW_PAD)
         body.pack(fill="both", expand=True)
-        msg = ttk.Label(
-            body,
-            text=f"Скачать Eclipse Temurin Java {self.major} для Minecraft {mc_version}?",
-            wraplength=400,
-        )
-        msg.pack(anchor="w", pady=(0, 10))
-        self.status_var = tk.StringVar(value="")
-        ttk.Label(body, textvariable=self.status_var, style="Status.TLabel").pack(anchor="w")
-        row = ttk.Frame(body)
-        row.pack(fill="x", pady=(14, 0))
-        row.columnconfigure(0, weight=1, uniform="dlgbtn")
-        row.columnconfigure(1, weight=1, uniform="dlgbtn")
-        cancel_btn = ttk.Button(row, text="Отмена", style="Tool.TButton", command=self.destroy)
-        cancel_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self.btn = ttk.Button(row, text="Скачать", style="Tool.TButton", command=self._start)
-        self.btn.grid(row=0, column=1, sticky="ew")
-        add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
-        theme_for_child(self, parent, min_width=440, min_height=160)
-        install_no_autoselect(msg)
-        self.grab_set()
 
-        existing = installed_java_path(launcher_dir, self.major)
-        if existing:
-            self.status_var.set(f"Уже установлена: {existing}")
+        hint = f" для Minecraft {mc_version}" if mc_version.strip() else ""
+        ttk.Label(
+            body,
+            text=f"Eclipse Temurin (JRE) в папку лаунчера{hint}. Одна копия на версию Java.",
+            wraplength=440,
+        ).pack(anchor="w", pady=(0, 10))
+
+        row = ttk.Frame(body)
+        row.pack(fill="x", pady=(0, 8))
+        ttk.Label(row, text="Версия Java:", style="Form.TLabel").pack(side="left")
+        self.major_var = tk.StringVar(value=str(suggested_major))
+        self.major_combo = ttk.Combobox(
+            row,
+            textvariable=self.major_var,
+            values=[str(m) for m in JAVA_MAJOR_CHOICES],
+            state="readonly",
+            width=8,
+        )
+        self.major_combo.pack(side="left", padx=(10, 0))
+
+        self.status_var = tk.StringVar(value="")
+        ttk.Label(body, textvariable=self.status_var, style="Status.TLabel").pack(
+            anchor="w"
+        )
+
+        btn_row = ttk.Frame(body)
+        btn_row.pack(fill="x", pady=(14, 0))
+        btn_row.columnconfigure(0, weight=1, uniform="dlgbtn")
+        btn_row.columnconfigure(1, weight=1, uniform="dlgbtn")
+        ttk.Button(btn_row, text="Отмена", style="Tool.TButton", command=self.destroy).grid(
+            row=0, column=0, sticky="ew", padx=(0, 8)
+        )
+        self.btn = ttk.Button(btn_row, text="Скачать", style="Accent.TButton", command=self._start)
+        self.btn.grid(row=0, column=1, sticky="ew")
+        add_tooltip(self.btn, "Скачать только если этой версии ещё нет в папке java/")
+
+        theme_for_child(self, parent, min_width=440, min_height=200)
+        self.grab_set()
+        self._refresh_installed_hint()
+
+        self.major_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_installed_hint())
+
+    def _selected_major(self) -> int:
+        try:
+            return int(self.major_var.get().strip())
+        except ValueError:
+            return 21
+
+    def _refresh_installed_hint(self) -> None:
+        major = self._selected_major()
+        path = installed_java_path(self.launcher_dir, major)
+        if path:
+            self.status_var.set(f"Java {major} уже установлена: {path}")
+        else:
+            installed = list_installed_java_majors(self.launcher_dir)
+            if installed:
+                self.status_var.set(
+                    f"Установлены: {', '.join(str(m) for m in installed)}. Java {major} — скачать."
+                )
+            else:
+                self.status_var.set(f"Java {major} будет скачана в java/jdk-{major}/")
 
     def _start(self) -> None:
+        major = self._selected_major()
+        if major not in JAVA_MAJOR_CHOICES:
+            messagebox.showwarning("Java", "Выберите 8, 17 или 21.", parent=self)
+            return
         self.btn.configure(state="disabled")
 
         def worker() -> None:
@@ -157,9 +205,7 @@ class JavaDownloadDialog(tk.Toplevel):
                 def status(t: str) -> None:
                     self.after(0, lambda: self.status_var.set(t))
 
-                path = download_java(
-                    self.launcher_dir, self.major, on_status=status
-                )
+                path = download_java(self.launcher_dir, major, on_status=status)
             except Exception as exc:
                 self.after(0, lambda e=exc: self._on_error(e))
                 return

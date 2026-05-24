@@ -6,10 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from disk_check import free_gb, needs_download_warning
-from game_logs import latest_crash_report
 from java_manager import JavaInstall, required_java_major
-from mod_duplicates import find_duplicate_mods
-from ram_advisor import count_mod_jars, recommend_ram_gb
+from ram_advisor import count_mod_jars
 
 
 @dataclass(frozen=True)
@@ -62,33 +60,13 @@ def run_prelaunch_checks(
     need_java = required_java_major(mc_version)
     have_java = _java_major_from_path(java_path, java_installs)
     java_missing = not java_path or not Path(java_path).exists()
-    if have_java is not None and have_java < need_java:
-        if auto_java:
-            results.append(
-                CheckResult(
-                    "info",
-                    f"При запуске будет установлена Java {need_java} (сейчас Java {have_java}).",
-                )
-            )
-        else:
-            results.append(
-                CheckResult(
-                    "error",
-                    f"Java {have_java} не подходит для {mc_version} (нужна {need_java}+).",
-                )
-            )
-    elif java_missing and auto_java:
+    if have_java is not None and have_java < need_java and not auto_java:
         results.append(
             CheckResult(
-                "info",
-                f"При запуске будет установлена Java {need_java} для Minecraft {mc_version}.",
+                "error",
+                f"Java {have_java} не подходит для {mc_version} (нужна {need_java}+).",
             )
         )
-    elif have_java is None and java_path:
-        results.append(
-            CheckResult("warning", "Не удалось определить версию выбранной Java.")
-        )
-
     mod_count = count_mod_jars(game_dir)
     if loader_id == "vanilla" and mod_count > 0:
         results.append(
@@ -102,15 +80,6 @@ def run_prelaunch_checks(
             CheckResult(
                 "info",
                 "Папка mods пуста — игра запустится без модов.",
-            )
-        )
-
-    recommended = recommend_ram_gb(game_dir, loader=loader_id)
-    if ram_gb < recommended:
-        results.append(
-            CheckResult(
-                "warning",
-                f"ОЗУ {ram_gb} ГБ — рекомендуется {recommended} ГБ для этой сборки.",
             )
         )
 
@@ -154,34 +123,6 @@ def run_prelaunch_checks(
                 CheckResult(
                     "warning",
                     f"Мало места на диске для {reason} (~{need_gb:.1f} ГБ, свободно {free:.1f} ГБ).",
-                )
-            )
-
-    dup_groups = find_duplicate_mods(game_dir / "mods")
-    if dup_groups:
-        dup_lines: list[str] = []
-        for group in dup_groups[:4]:
-            names = ", ".join(p.name for p in group.paths)
-            dup_lines.append(f"{group.label}: {names}")
-        if len(dup_groups) > 4:
-            dup_lines.append(f"…ещё {len(dup_groups) - 4} групп")
-        results.append(
-            CheckResult(
-                "warning",
-                "Дубликаты модов (удалите лишние .jar):\n" + "\n".join(dup_lines),
-            )
-        )
-
-    crash = latest_crash_report(game_dir)
-    if crash and crash.is_file():
-        import time
-
-        age_hours = (time.time() - crash.stat().st_mtime) / 3600
-        if age_hours < 48:
-            results.append(
-                CheckResult(
-                    "warning",
-                    f"Недавний crash-report ({crash.name}) — проверьте логи.",
                 )
             )
 

@@ -2,40 +2,18 @@
 
 from __future__ import annotations
 
-import re
+import json
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from modrinth import file_sha512, lookup_versions_by_hashes
 
-_JAR_ID_RE = re.compile(rb'"id"\s*:\s*"([a-z0-9_\-\.]+)"', re.IGNORECASE)
-
 
 @dataclass(frozen=True)
 class ModDuplicateGroup:
     label: str
     paths: tuple[Path, ...]
-
-
-def _jar_mod_ids(path: Path) -> set[str]:
-    ids: set[str] = set()
-    try:
-        with zipfile.ZipFile(path, "r") as zf:
-            for name in ("fabric.mod.json", "quilt.mod.json"):
-                if name not in zf.namelist():
-                    continue
-                try:
-                    raw = zf.read(name)[:8192]
-                except (KeyError, OSError):
-                    continue
-                for match in _JAR_ID_RE.finditer(raw):
-                    mod_id = match.group(1).decode("ascii", errors="ignore").strip()
-                    if mod_id:
-                        ids.add(mod_id.lower())
-    except (OSError, zipfile.BadZipFile):
-        pass
-    return ids
 
 
 def _list_mod_jars(mods_dir: Path) -> list[Path]:
@@ -53,53 +31,104 @@ def _list_mod_jars(mods_dir: Path) -> list[Path]:
     )
 
 
+def _primary_mod_id(path: Path) -> str | None:
+    """Только верхний id из fabric.mod.json / quilt.mod.json."""
+    try:
+        with zipfile.ZipFile(path, "r") as zf:
+            for name in ("fabric.mod.json", "quilt.mod.json"):
+                if name not in zf.namelist():
+                    continue
+                data = json.loads(zf.read(name))
+                mod_id = str(data.get("id") or "").strip().lower()
+                if mod_id:
+                    return mod_id
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return None
+
+
 def find_duplicate_mods(mods_dir: Path) -> list[ModDuplicateGroup]:
-    """Группы дубликатов: один project_id Modrinth или один mod id из fabric/quilt."""
+    """
+    Дубликаты:
+    - одинаковый SHA512 (копии одного файла);
+    - один project_id Modrinth, но разные .jar (две версии одного мода);
+  - один mod id в fabric/quilt, но разные .jar (разные файлы).
+    """
     jars = _list_mod_jars(mods_dir)
     if len(jars) < 2:
         return []
 
     groups: list[ModDuplicateGroup] = []
-    seen_paths: set[Path] = set()
+    claimed: set[Path] = set()
 
+    by_hash: dict[str, list[Path]] = {}
     hash_by_path: dict[Path, str] = {}
-    hashes: list[str] = []
     for jar in jars:
         try:
             digest = file_sha512(jar)
         except OSError:
             continue
         hash_by_path[jar] = digest
-        hashes.append(digest)
+        by_hash.setdefault(digest, []).append(jar)
 
-    known = lookup_versions_by_hashes(hashes) if hashes else {}
-    by_project: dict[str, list[Path]] = {}
-    for jar, digest in hash_by_path.items():
-        meta = known.get(digest) or {}
-        project_id = str(meta.get("project_id") or "").strip()
-        if not project_id:
-            continue
-        title = str(meta.get("name") or jar.stem)
-        by_project.setdefault(f"Modrinth: {title}", []).append(jar)
-
-    for label, paths in sorted(by_project.items()):
-        if len(paths) < 2:
-            continue
+    for digest, paths in sorted(by_hash.items(), key=lambda item: item[1][0].name.lower()):
         unique = tuple(sorted(set(paths), key=lambda p: p.name.lower()))
-        groups.append(ModDuplicateGroup(label=label, paths=unique))
-        seen_paths.update(unique)
+        if len(unique) < 2:
+            continue
+        groups.append(
+            ModDuplicateGroup(label="Одинаковый файл (hash)", paths=unique)
+        )
+        claimed.update(unique)
+
+    paths_for_lookup = [p for p in hash_by_path if p not in claimed]
+    hashes = [hash_by_path[p] for p in paths_for_lookup]
+    known = lookup_versions_by_hashes(hashes) if hashes else {}
+    if known:
+        by_project: dict[str, list[tuple[Path, str]]] = {}
+        for jar in paths_for_lookup:
+            digest = hash_by_path[jar]
+            meta = known.get(digest) or {}
+            project_id = str(meta.get("project_id") or "").strip()
+            if not project_id:
+                continue
+            title = str(meta.get("name") or jar.stem)
+            by_project.setdefault(project_id, []).append((jar, title))
+
+        for project_id, entries in sorted(by_project.items(), key=lambda x: x[0]):
+            paths = [p for p, _t in entries]
+            if len(paths) < 2:
+                continue
+            digests = {hash_by_path[p] for p in paths if p in hash_by_path}
+            if len(digests) < 2:
+                continue
+            title = entries[0][1]
+            unique = tuple(sorted(set(paths), key=lambda p: p.name.lower()))
+            groups.append(
+                ModDuplicateGroup(
+                    label=f"Modrinth «{title}» (разные версии)",
+                    paths=unique,
+                )
+            )
+            claimed.update(unique)
 
     by_mod_id: dict[str, list[Path]] = {}
     for jar in jars:
-        if jar in seen_paths:
+        if jar in claimed:
             continue
-        for mod_id in _jar_mod_ids(jar):
-            by_mod_id.setdefault(mod_id, []).append(jar)
+        mod_id = _primary_mod_id(jar)
+        if not mod_id:
+            continue
+        by_mod_id.setdefault(mod_id, []).append(jar)
 
     for mod_id, paths in sorted(by_mod_id.items()):
         unique = tuple(sorted(set(paths), key=lambda p: p.name.lower()))
         if len(unique) < 2:
             continue
-        groups.append(ModDuplicateGroup(label=f"Mod id: {mod_id}", paths=unique))
+        digests = {hash_by_path[p] for p in unique if p in hash_by_path}
+        if len(digests) < 2:
+            continue
+        groups.append(
+            ModDuplicateGroup(label=f"Mod id «{mod_id}» (разные файлы)", paths=unique)
+        )
 
     return groups

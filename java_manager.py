@@ -147,7 +147,7 @@ def ensure_java_for_mc(
     installs: list[JavaInstall] | None = None,
     on_status: Callable[[str], None] | None = None,
 ) -> str:
-    """Подобрать Java для MC или скачать Temurin в папку лаунчера."""
+    """Подобрать Java для MC или скачать Temurin в папку лаунчера (одна jdk-N на major)."""
     need = required_java_major(mc_version)
     pool = installs if installs is not None else list_java_installs(launcher_dir)
 
@@ -158,14 +158,23 @@ def ensure_java_for_mc(
         if bundled:
             return str(bundled)
 
-        path = resolve_java_executable(
-            mc_version, preferred_path=preferred_path, installs=pool
-        )
-        if path and Path(path).exists():
-            major = java_major_for_path(path, pool)
-            if major is None or major >= need:
-                return path
+        pref = preferred_path.strip()
+        if pref and Path(pref).exists():
+            major = java_major_for_path(pref, pool)
+            if major is not None and major < need:
+                pref = ""
+            elif major is None or major >= need:
+                return pref
 
+        if not pref:
+            best = pick_best_java(mc_version, pool)
+            if best and Path(best).exists():
+                major = java_major_for_path(best, pool)
+                if major is None or major >= need:
+                    return best
+
+        if on_status:
+            on_status(f"Скачивание Java {need}…")
         return str(download_java(launcher_dir, need, on_status=on_status))
     except ImportError:
         return resolve_java_executable(

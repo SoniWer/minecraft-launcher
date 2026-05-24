@@ -62,6 +62,7 @@ from java_manager import (
     java_hint,
     label_to_path,
     list_java_installs,
+    required_java_major,
     resolve_java_executable,
 )
 from jvm_args import parse_jvm_args
@@ -1044,9 +1045,10 @@ class MinecraftLauncherApp:
 
     def _on_game_running_changed(self, running: bool) -> None:
         if hasattr(self, "log_panel"):
-            self.log_panel.set_fast_poll(running)
             if running:
-                self.log_panel.reset_source()
+                self.log_panel.begin_game_session()
+            else:
+                self.log_panel.set_fast_poll(False)
         self._update_play_button(running)
         self._sync_discord_presence(running=running)
         if running:
@@ -1157,13 +1159,10 @@ class MinecraftLauncherApp:
 
     def _download_java(self) -> None:
         from extras_ui import JavaDownloadDialog
+        from java_manager import required_java_major
 
         mc_version = self.version_combo.get().strip()
-        if not mc_version:
-            messagebox.showwarning(
-                "Java", "Выберите версию Minecraft.", parent=self.root
-            )
-            return
+        suggested = required_java_major(mc_version) if mc_version else 21
 
         def on_installed(java_path: str) -> None:
             if self.current_build:
@@ -1177,6 +1176,7 @@ class MinecraftLauncherApp:
             self.root,
             launcher_dir=LAUNCHER_DIR,
             mc_version=mc_version,
+            suggested_major=suggested,
             on_installed=on_installed,
         )
 
@@ -1592,8 +1592,6 @@ class MinecraftLauncherApp:
         self._save_current_build()
         game_dir.mkdir(parents=True, exist_ok=True)
         (game_dir / "logs").mkdir(parents=True, exist_ok=True)
-        if hasattr(self, "log_panel"):
-            self.log_panel.reset_source()
         build_name = self.current_build.name
         extra_jvm = parse_jvm_args(self.jvm_args_var.get().strip())
 
@@ -1660,7 +1658,13 @@ class MinecraftLauncherApp:
                 )
                 self.root.after(0, self._load_java_installs_async)
                 if self.current_build:
-                    self.current_build.java_path = java_exe
+                    from java_download import installed_java_path
+
+                    need_major = required_java_major(mc_version)
+                    bundled = installed_java_path(LAUNCHER_DIR, need_major)
+                    self.current_build.java_path = (
+                        str(bundled) if bundled else java_exe
+                    )
                     save_build(self.current_build, LAUNCHER_DIR)
 
                 launch_version = self._resolve_launch_version(mc_version, callback)
