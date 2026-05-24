@@ -23,14 +23,14 @@ class ThemeColors:
 
 
 DARK = ThemeColors(
-    bg="#16161a",
-    fg="#ececef",
-    muted="#8b919c",
+    bg="#1c1c1c",
+    fg="#fafafa",
+    muted="#a0a0a8",
     accent="#3d9a4a",
     accent_hover="#4db35c",
     accent_fg="#ffffff",
-    card="#222228",
-    entry="#2c2c34",
+    card="#252525",
+    entry="#2a2a2a",
     border="#3a3a44",
     success="#5ecf6a",
     danger="#e06060",
@@ -78,7 +78,75 @@ def apply_theme(root: tk.Misc, *, dark: bool) -> ThemeColors:
 
     _configure_styles(root, colors)
     _sync_ttk_backgrounds(root, colors)
+    if _using_sv_ttk():
+        _flatten_sv_ttk_layouts(ttk.Style(root), colors)
     return colors
+
+
+_FLAT_LABEL_LAYOUT = [("Label.label", {"sticky": "w"})]
+_FLAT_TOOL_BUTTON_LAYOUT = [("Button.label", {"sticky": "nswe"})]
+_MENU_MENUBUTTON_LAYOUT = [
+    (
+        "Menubutton.padding",
+        {
+            "sticky": "nswe",
+            "children": [
+                ("Menubutton.label", {"side": "left", "expand": 1}),
+                ("Menubutton.indicator", {"side": "right", "sticky": "ns"}),
+            ],
+        },
+    ),
+]
+
+
+def _flatten_sv_ttk_layouts(style: ttk.Style, colors: ThemeColors) -> None:
+    """Убрать clam Label.border и пустой спрайт Toolbutton — чёрные квадраты на Windows."""
+    bg = colors.bg
+    for name in (
+        "TLabel",
+        "Title.TLabel",
+        "Subtitle.TLabel",
+        "Form.TLabel",
+        "Hint.TLabel",
+        "Status.TLabel",
+        "Success.TLabel",
+        "TLabelframe.Label",
+        "Card.TLabelframe.Label",
+    ):
+        try:
+            style.layout(name, _FLAT_LABEL_LAYOUT)
+            style.configure(name, background=bg, borderwidth=0)
+        except tk.TclError:
+            pass
+    try:
+        style.layout("TFrame", [])
+        style.configure("TFrame", background=bg, borderwidth=0)
+    except tk.TclError:
+        pass
+    try:
+        style.layout("Tool.TButton", _FLAT_TOOL_BUTTON_LAYOUT)
+        style.configure(
+            "Tool.TButton",
+            background=bg,
+            borderwidth=0,
+            focuscolor=bg,
+            relief="flat",
+        )
+        style.map(
+            "Tool.TButton",
+            background=[("active", colors.card), ("pressed", colors.entry)],
+        )
+    except tk.TclError:
+        pass
+    try:
+        style.layout("Menu.TMenubutton", _MENU_MENUBUTTON_LAYOUT)
+        style.configure("Menu.TMenubutton", background=bg, borderwidth=0, focuscolor=bg)
+        style.map(
+            "Menu.TMenubutton",
+            background=[("active", colors.card), ("pressed", colors.entry)],
+        )
+    except tk.TclError:
+        pass
 
 
 def _sync_ttk_backgrounds(root: tk.Misc, colors: ThemeColors) -> None:
@@ -100,6 +168,7 @@ def _sync_ttk_backgrounds(root: tk.Misc, colors: ThemeColors) -> None:
         "Status.TLabel",
         "Success.TLabel",
         "Tool.TButton",
+        "Menu.TMenubutton",
         "Accent.TButton",
         "Stop.TButton",
         "Horizontal.TSeparator",
@@ -240,6 +309,7 @@ def _configure_styles(root: tk.Misc, colors: ThemeColors) -> None:
     )
     style.configure("Accent.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Tool.TButton", padding=pad_tool, borderwidth=0)
+    style.configure("Menu.TMenubutton", padding=pad_tool, borderwidth=0)
     style.configure("Danger.TButton", padding=pad_tool)
     style.configure("Stop.TButton", font=FONTS["play"], padding=pad_btn)
     style.configure("Treeview", rowheight=28, font=FONTS["body"])

@@ -480,17 +480,14 @@ class MinecraftLauncherApp:
             row=lr, column=0, sticky="ew", pady=(10, 6)
         )
         lr += 1
-        logs_row = ttk.Frame(launch)
-        logs_row.grid(row=lr, column=0, sticky="ew")
-        logs_row.columnconfigure(0, weight=1)
         self.logs_btn = ttk.Button(
-            logs_row,
+            launch,
             text="Логи и сбои",
             style="Tool.TButton",
             command=self._open_logs_game_tab,
             width=14,
         )
-        self.logs_btn.grid(row=0, column=1, sticky="e")
+        self.logs_btn.grid(row=lr, column=0, sticky="e")
 
         for combo, var in (
             (self.build_combo, self.build_var),
@@ -634,7 +631,7 @@ class MinecraftLauncherApp:
         self._open_logs_and_crashes(initial_tab=1)
 
     def _create_content_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Контент ▾", style="Tool.TButton")
+        mb = ttk.Menubutton(parent, text="Контент ▾", style="Menu.TMenubutton")
         self._content_menu = tk.Menu(mb, tearoff=0)
         self._style_menu(self._content_menu)
         self._content_menu.add_command(label="Моды", command=self._open_mod_manager)
@@ -680,7 +677,7 @@ class MinecraftLauncherApp:
         PackListWindow(self.root, game_dir=self._game_dir(), kind=kind)
 
     def _create_utils_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Утилиты ▾", style="Tool.TButton")
+        mb = ttk.Menubutton(parent, text="Утилиты ▾", style="Menu.TMenubutton")
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
         menu.add_command(label="Экспорт сборки", command=self._export_backup)
@@ -710,7 +707,7 @@ class MinecraftLauncherApp:
         return mb
 
     def _create_folders_menubutton(self, parent: ttk.Widget) -> ttk.Menubutton:
-        mb = ttk.Menubutton(parent, text="Папки ▾", style="Tool.TButton")
+        mb = ttk.Menubutton(parent, text="Папки ▾", style="Menu.TMenubutton")
         menu = tk.Menu(mb, tearoff=0)
         self._style_menu(menu)
         for label, sub, tip in (
