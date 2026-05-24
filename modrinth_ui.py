@@ -13,7 +13,13 @@ from typing import Any
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
-from ui_layout import BTN_GAP, WINDOW_PAD, autosize_toplevel, tree_with_scrollbar
+from ui_layout import (
+    BTN_GAP,
+    WINDOW_PAD,
+    autosize_toplevel,
+    setup_toplevel_window,
+    tree_with_scrollbar,
+)
 from modrinth_icons import icon_photo_from_rgba, load_icons_batch
 from app_paths import launcher_dir
 from disk_check import check_disk_space, estimate_modpack_need_gb
@@ -66,7 +72,7 @@ class ModrinthBrowser(tk.Toplevel):
         self,
         parent: tk.Tk,
         *,
-        minecraft_dir: Path,
+        get_game_dir: Callable[[], Path],
         shared_minecraft_dir: Path,
         get_mc_version: Callable[[], str],
         get_loader_id: Callable[[], str],
@@ -75,7 +81,7 @@ class ModrinthBrowser(tk.Toplevel):
         on_auto_backup: Callable[[], object] | None = None,
     ) -> None:
         super().__init__(parent)
-        self.minecraft_dir = minecraft_dir
+        self.get_game_dir = get_game_dir
         self.shared_dir = shared_minecraft_dir
         self.get_mc_version = get_mc_version
         self.get_loader_id = get_loader_id
@@ -95,12 +101,17 @@ class ModrinthBrowser(tk.Toplevel):
 
         self._build_ui()
         autosize_toplevel(self, min_width=760, min_height=480)
+        setup_toplevel_window(self, min_width=760, min_height=480)
         self._update_loader_filter_state()
         theme_for_child(self, parent)
         self.transient(parent)
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._close)
         self.after(150, self._load_popular)
+
+    @property
+    def minecraft_dir(self) -> Path:
+        return self.get_game_dir()
 
     def _is_alive(self) -> bool:
         try:
@@ -321,7 +332,7 @@ class ModrinthBrowser(tk.Toplevel):
             self.download_btn.configure(text="Скачать")
 
     def _installed_files(self) -> set[str]:
-        return list_installed_filenames(self.minecraft_dir, self._content_type())
+        return list_installed_filenames(self.get_game_dir(), self._content_type())
 
     def _require_mc_version(self) -> str | None:
         mc_version = self.get_mc_version().strip()
@@ -601,7 +612,7 @@ class ModrinthBrowser(tk.Toplevel):
             folder_hint = "modpack → новая сборка с именем проекта"
         else:
             folder = CONTENT_FOLDERS.get(project_type, "mods")
-            folder_hint = str(self.minecraft_dir / folder)
+            folder_hint = str(self.get_game_dir() / folder)
         prefix = "Популярное" if not query else "Найдено"
         self.status_var.set(
             f"{prefix}: {self._search_total} · показано {len(self._hits)} · {folder_hint}"
@@ -693,7 +704,7 @@ class ModrinthBrowser(tk.Toplevel):
                 mark = (
                     "✓ "
                     if is_modpack_installed(
-                        self.minecraft_dir, project_id, version.get("id")
+                        self.get_game_dir(), project_id, version.get("id")
                     )
                     else ""
                 )
@@ -770,11 +781,11 @@ class ModrinthBrowser(tk.Toplevel):
                 return
 
         title = hit.get("title", "файл")
-        install_game_dir = self.minecraft_dir
+        install_game_dir = self.get_game_dir()
 
         if project_type == "modpack":
             need_gb = estimate_modpack_need_gb(version.get("files"))
-            check_path = self.minecraft_dir
+            check_path = self.get_game_dir()
             if self.on_create_build_for_modpack:
                 check_path = launcher_dir() / "builds"
             ok, disk_msg = check_disk_space(check_path, need_gb)
@@ -788,16 +799,32 @@ class ModrinthBrowser(tk.Toplevel):
             if self.on_auto_backup:
                 self.on_auto_backup()
             if self.on_create_build_for_modpack:
-                try:
-                    install_game_dir = self.on_create_build_for_modpack(title)
-                except Exception as exc:
-                    messagebox.showerror(
-                        "Ошибка",
-                        f"Не удалось создать сборку:\n{exc}",
-                        parent=self,
-                    )
+                choice = messagebox.askyesnocancel(
+                    "Установка modpack",
+                    f"«{title}»\n\n"
+                    "Да — новая сборка\n"
+                    "Нет — текущая сборка (содержимое может быть перезаписано)\n"
+                    "Отмена",
+                    parent=self,
+                )
+                if choice is None:
                     return
-            self.status_var.set(f"Новая сборка «{title}» — установка...")
+                if choice:
+                    try:
+                        install_game_dir = self.on_create_build_for_modpack(title)
+                    except Exception as exc:
+                        messagebox.showerror(
+                            "Ошибка",
+                            f"Не удалось создать сборку:\n{exc}",
+                            parent=self,
+                        )
+                        return
+                    self.status_var.set(f"Новая сборка — установка «{title}»...")
+                else:
+                    install_game_dir = self.get_game_dir()
+                    self.status_var.set(f"Установка в текущую сборку: {title}...")
+            else:
+                self.status_var.set(f"Установка: {title}...")
 
         self._set_busy(True)
         self.progress.configure(mode="determinate", maximum=100, value=0)
@@ -829,7 +856,7 @@ class ModrinthBrowser(tk.Toplevel):
                     return
                 install_results = install_version_with_dependencies(
                     version,
-                    minecraft_dir=self.minecraft_dir,
+                    minecraft_dir=self.get_game_dir(),
                     project_type=project_type,
                     mc_version=mc_version,
                     loader=self._api_loader(),

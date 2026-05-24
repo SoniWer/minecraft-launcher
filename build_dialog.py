@@ -8,7 +8,14 @@ from tkinter import messagebox, ttk
 
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
-from ui_layout import DIALOG_PAD, form_field, form_label, setup_form_grid
+from ui_layout import (
+    DIALOG_PAD,
+    autosize_toplevel,
+    form_field,
+    form_label,
+    setup_form_grid,
+    setup_toplevel_window,
+)
 
 LOADER_CHOICES = [
     ("vanilla", "Vanilla (без модов)"),
@@ -32,7 +39,6 @@ class NewBuildDialog(tk.Toplevel):
         super().__init__(parent)
         self.on_created = on_created
         self.title("Новая сборка")
-        self.resizable(False, False)
         self.grab_set()
         self.transient(parent)
 
@@ -89,6 +95,8 @@ class NewBuildDialog(tk.Toplevel):
         install_no_autoselect(loader_combo, self.loader_var)
 
         theme_for_child(self, parent)
+        autosize_toplevel(self, min_width=420, min_height=220)
+        setup_toplevel_window(self, min_width=400, min_height=200)
         self.bind("<Return>", lambda _e: self._submit())
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 

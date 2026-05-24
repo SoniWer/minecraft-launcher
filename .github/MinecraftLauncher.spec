@@ -41,6 +41,7 @@ hiddenimports = [
     "mod_duplicates",
     "mod_updates_ui",
     "play_stats_ui",
+    "crash_reports_ui",
     "discord_presence",
     "pypresence",
     "prelaunch_check",

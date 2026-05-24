@@ -42,6 +42,7 @@ LOCAL_MODULES: tuple[str, ...] = (
     "mod_duplicates",
     "mod_updates_ui",
     "play_stats_ui",
+    "crash_reports_ui",
     "discord_presence",
     "extras_ui",
 )

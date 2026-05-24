@@ -1,6 +1,6 @@
 """Версия лаунчера (совпадает с тегом релиза на GitHub)."""
 
-LAUNCHER_VERSION = "1.6.5"
+LAUNCHER_VERSION = "1.6.6"
 GITHUB_REPO = "SoniWer/minecraft-launcher"
 
 # Application ID Discord (публичный, не секрет). Rich Presence.

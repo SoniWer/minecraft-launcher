@@ -11,7 +11,12 @@ from java_download import JavaDownloadError, download_java, installed_java_path
 from theme import theme_for_child
 from ui_focus import install_no_autoselect
 from tooltips import add_tooltip
-from ui_layout import BOTTOM_PAD, WINDOW_PAD, tree_with_scrollbar
+from ui_layout import (
+    BOTTOM_PAD,
+    WINDOW_PAD,
+    setup_toplevel_window,
+    tree_with_scrollbar,
+)
 from version_manager import InstalledVersion, delete_version, list_installed_versions
 
 
@@ -57,6 +62,7 @@ class VersionManagerWindow(tk.Toplevel):
         add_tooltip(close_btn, "Закрыть окно")
 
         theme_for_child(self, parent)
+        setup_toplevel_window(self, min_width=520, min_height=420)
         self.transient(parent)
         self._reload()
 
@@ -117,7 +123,6 @@ class JavaDownloadDialog(tk.Toplevel):
 
         self.title("Скачать Java")
         self.geometry("460x170")
-        self.resizable(False, False)
         body = ttk.Frame(self, padding=WINDOW_PAD)
         body.pack(fill="both", expand=True)
         msg = ttk.Label(
@@ -138,6 +143,7 @@ class JavaDownloadDialog(tk.Toplevel):
         self.btn.grid(row=0, column=1, sticky="ew")
         add_tooltip(self.btn, "Скачать Eclipse Temurin в папку лаунчера")
         theme_for_child(self, parent)
+        setup_toplevel_window(self, min_width=440, min_height=160)
         install_no_autoselect(msg)
         self.transient(parent)
         self.grab_set()

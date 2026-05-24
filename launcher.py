@@ -165,6 +165,8 @@ class MinecraftLauncherApp:
         self.root = root
         self.root.title(f"Minecraft Launcher v{LAUNCHER_VERSION}")
         self.root.minsize(940, 600)
+        self.root.resizable(True, True)
+        self._pending_modpack_build: Build | None = None
 
         self.shared_dir = minecraft_launcher_lib.utils.get_minecraft_directory()
         self.versions: list[dict] = []
@@ -447,23 +449,35 @@ class MinecraftLauncherApp:
         ).grid(row=0, column=0, sticky="w")
         ttk.Button(
             self.crash_bar,
-            text="Открыть краш",
+            text="Открыть",
             style="Tool.TButton",
             command=self._open_pending_crash,
         ).grid(row=0, column=1, padx=(8, 0))
+        ttk.Button(
+            self.crash_bar,
+            text="Все краши",
+            style="Tool.TButton",
+            command=self._open_crash_reports,
+        ).grid(row=0, column=2, padx=(8, 0))
         self.crash_bar.grid_remove()
         lr += 1
 
         menu_row = ttk.Frame(launch)
         menu_row.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
-        for col in range(3):
+        for col in range(4):
             menu_row.columnconfigure(col, weight=1, uniform="menu")
         self.content_mb = self._create_content_menubutton(menu_row)
         self.content_mb.grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
         self.utils_mb = self._create_utils_menubutton(menu_row)
         self.utils_mb.grid(row=0, column=1, sticky="ew", padx=(0, BTN_GAP))
         self.folders_mb = self._create_folders_menubutton(menu_row)
-        self.folders_mb.grid(row=0, column=2, sticky="ew")
+        self.folders_mb.grid(row=0, column=2, sticky="ew", padx=(0, BTN_GAP))
+        ttk.Button(
+            menu_row,
+            text="Краши",
+            style="Tool.TButton",
+            command=self._open_crash_reports,
+        ).grid(row=0, column=3, sticky="ew")
         lr += 1
 
         self.path_label = ttk.Label(launch, text="", style="Hint.TLabel", wraplength=260)
@@ -715,6 +729,7 @@ class MinecraftLauncherApp:
             command=self._check_duplicate_mods,
         )
         menu.add_command(label="Статистика", command=self._open_play_stats)
+        menu.add_command(label="Отчёты о сбоях", command=self._open_crash_reports)
         menu.add_separator()
         menu.add_command(label="Что нового", command=self._show_changelog_manual)
         menu.add_command(label="Версии Minecraft", command=self._open_version_manager)
@@ -1304,17 +1319,17 @@ class MinecraftLauncherApp:
 
         ModrinthBrowser(
             self.root,
-            minecraft_dir=self._game_dir(),
+            get_game_dir=self._game_dir,
             shared_minecraft_dir=Path(self.shared_dir),
             get_mc_version=self._resolved_mc_version,
             get_loader_id=self._loader_id,
-            on_modpack_installed=self._apply_modpack_profile,
+            on_modpack_installed=self._schedule_modpack_profile,
             on_create_build_for_modpack=self._create_build_for_modpack,
             on_auto_backup=lambda: self._auto_backup("modpack"),
         )
 
     def _create_build_for_modpack(self, modpack_name: str) -> Path:
-        """Создаёт новую сборку под modpack и переключается на неё."""
+        """Создаёт новую сборку под modpack (переключение — после установки)."""
         self._save_current_build()
         build_name = unique_build_name(LAUNCHER_DIR, modpack_name)
         build = create_build(LAUNCHER_DIR, build_name)
@@ -1323,33 +1338,63 @@ class MinecraftLauncherApp:
         if ram is not None:
             build.ram_gb = ram
         save_build(build, LAUNCHER_DIR)
+        self._pending_modpack_build = build
         self._refresh_build_list()
-        self._select_build(build)
         self.status_var.set(f"Создана сборка «{build.name}», установка modpack...")
         return build.game_dir(LAUNCHER_DIR)
 
+    def _schedule_modpack_profile(self, profile: dict[str, str]) -> None:
+        self.root.after(0, lambda p=profile: self._apply_modpack_profile_safe(p))
+
+    def _apply_modpack_profile_safe(self, profile: dict[str, str]) -> None:
+        try:
+            self._apply_modpack_profile(profile)
+        except Exception as exc:
+            log_error(f"Modpack profile apply failed: {exc}")
+            messagebox.showerror(
+                "Modpack",
+                f"Сборка установлена, но не удалось применить настройки:\n{exc}",
+                parent=self.root,
+            )
+
     def _apply_modpack_profile(self, profile: dict[str, str]) -> None:
+        pending = self._pending_modpack_build
+        if pending:
+            self._pending_modpack_build = None
+            self._suppress_build_save = True
+            try:
+                self._select_build(pending)
+            finally:
+                self._suppress_build_save = False
         if not self.current_build:
             return
-        mc_version = profile.get("mc_version", "").strip()
-        loader = profile.get("loader", "vanilla").strip()
-        loader_version = profile.get("loader_version", "").strip()
-        launch_version = profile.get("launch_version", "").strip()
-        if mc_version:
-            self.current_build.mc_version = mc_version
-            self.version_combo.set(mc_version)
-        if loader in LOADER_DISPLAY:
-            self.loader_var.set(LOADER_DISPLAY[loader])
-        elif loader in LOADER_BY_NAME:
-            self.loader_var.set(LOADER_BY_NAME[loader])
-        if loader_version:
-            self.current_build.loader_version = loader_version
-            self.loader_version_combo.set(loader_version)
-        if launch_version:
+
+        self._suppress_build_save = True
+        try:
+            mc_version = profile.get("mc_version", "").strip()
+            loader = profile.get("loader", "vanilla").strip()
+            loader_version = profile.get("loader_version", "").strip()
+            launch_version = profile.get("launch_version", "").strip()
+
+            if loader in LOADER_DISPLAY:
+                self.loader_var.set(LOADER_DISPLAY[loader])
+                self.current_build.loader = loader
+            if mc_version:
+                self.current_build.mc_version = mc_version
+            if loader_version:
+                self.current_build.loader_version = loader_version
             self.current_build.launch_version = launch_version
-        self._update_loader_version_visibility()
-        self._apply_filter()
-        self._refresh_loader_versions_async()
+
+            self._update_loader_version_visibility()
+            self._apply_filter()
+            if mc_version and mc_version in (self.version_combo["values"] or ()):
+                self.version_combo.set(mc_version)
+            if loader_version:
+                self.loader_version_combo.set(loader_version)
+            self._refresh_loader_versions_async()
+        finally:
+            self._suppress_build_save = False
+
         self._save_current_build()
         lv_note = f", запуск: {launch_version}" if launch_version else ""
         self.status_var.set(
@@ -1744,20 +1789,20 @@ class MinecraftLauncherApp:
         self.crash_msg_var.set(f"Сбой игры: {crash.name}")
         self.crash_bar.grid()
 
+    def _open_crash_reports(self) -> None:
+        from crash_reports_ui import CrashReportsWindow
+
+        CrashReportsWindow(self.root, get_game_dir=self._game_dir)
+
     def _open_pending_crash(self) -> None:
         crash = self._pending_crash or latest_crash_report(self._game_dir())
         if not crash or not crash.is_file():
-            messagebox.showinfo("Краш", "Отчёт не найден.", parent=self.root)
+            self._open_crash_reports()
             return
         try:
             open_log_file(crash)
         except OSError as exc:
             messagebox.showerror("Ошибка", str(exc), parent=self.root)
-            return
-        self.settings.last_seen_crash_key = self._crash_key(crash)
-        self.settings.save(LAUNCHER_DIR)
-        self._pending_crash = None
-        self.crash_bar.grid_remove()
 
     def _check_crash_prompt(self) -> None:
         self._refresh_crash_bar()

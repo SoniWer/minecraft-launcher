@@ -155,6 +155,20 @@ def center_toplevel(
     window.geometry(f"{w}x{h}+{x}+{y}")
 
 
+def setup_toplevel_window(
+    window: tk.Misc,
+    *,
+    min_width: int = 520,
+    min_height: int = 360,
+) -> None:
+    """Стандартное окно: можно менять размер, свернуть и развернуть на весь экран."""
+    try:
+        window.resizable(True, True)
+        window.minsize(min_width, min_height)
+    except tk.TclError:
+        pass
+
+
 def autosize_toplevel(
     window: tk.Misc,
     *,
@@ -177,7 +191,7 @@ def autosize_toplevel(
     except tk.TclError:
         pass
     window.geometry(f"{width}x{height}")
-    window.minsize(min_width, min_height)
+    setup_toplevel_window(window, min_width=min_width, min_height=min_height)
 
 
 def tree_with_scrollbar(
@@ -197,3 +211,26 @@ def tree_with_scrollbar(
     tree.pack(side="left", fill="both", expand=True)
     scroll.pack(side="right", fill="y")
     return tree, scroll
+
+
+def text_with_scrollbar(
+    parent: ttk.Misc,
+    *,
+    wrap: str = "word",
+    height: int = 8,
+    font: tuple[str, int] | None = None,
+    **text_kw,
+) -> tuple[tk.Text, ttk.Scrollbar, ttk.Frame]:
+    """Текст с ttk.Scrollbar (как у списков в других окнах)."""
+    frame = ttk.Frame(parent)
+    kw: dict = {"wrap": wrap, "height": height, "borderwidth": 0}
+    if font is not None:
+        kw["font"] = font
+    kw.update(text_kw)
+    text = tk.Text(frame, **kw)
+    scroll = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
+    text.configure(yscrollcommand=scroll.set)
+    text.pack(side="left", fill="both", expand=True)
+    scroll.pack(side="right", fill="y")
+    frame.pack(fill="both", expand=True)
+    return text, scroll, frame

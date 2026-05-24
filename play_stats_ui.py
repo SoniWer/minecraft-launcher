@@ -9,7 +9,13 @@ from tkinter import ttk
 from builds import list_builds
 from play_time import format_play_time
 from theme import theme_for_child
-from ui_layout import WINDOW_PAD, autosize_toplevel, toplevel_shell, tree_with_scrollbar
+from ui_layout import (
+    WINDOW_PAD,
+    autosize_toplevel,
+    setup_toplevel_window,
+    toplevel_shell,
+    tree_with_scrollbar,
+)
 
 
 class PlayStatsWindow(tk.Toplevel):
@@ -19,6 +25,7 @@ class PlayStatsWindow(tk.Toplevel):
         self.title("Статистика")
         self._build_ui()
         autosize_toplevel(self, min_width=520, min_height=320)
+        setup_toplevel_window(self, min_width=520, min_height=320)
         theme_for_child(self, parent)
         self.transient(parent)
         self.grab_set()

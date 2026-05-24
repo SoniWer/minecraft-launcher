@@ -85,13 +85,27 @@ def read_log_incremental(
 
 
 def latest_crash_report(game_dir: Path) -> Path | None:
-    folder = game_dir / "crash-reports"
-    if not folder.is_dir():
-        return None
-    reports = [p for p in folder.glob("*.txt") if p.is_file()]
+    reports = list_crash_reports(game_dir)
     if not reports:
         return None
-    return max(reports, key=lambda p: p.stat().st_mtime)
+    return reports[0][0]
+
+
+def list_crash_reports(game_dir: Path) -> list[tuple[Path, float, int]]:
+    """(путь, mtime, размер_КБ) — от новых к старым."""
+    folder = game_dir / "crash-reports"
+    if not folder.is_dir():
+        return []
+    reports = [p for p in folder.glob("*.txt") if p.is_file()]
+    reports.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    out: list[tuple[Path, float, int]] = []
+    for path in reports:
+        try:
+            st = path.stat()
+            out.append((path, st.st_mtime, max(1, st.st_size // 1024)))
+        except OSError:
+            continue
+    return out
 
 
 def open_file(path: Path) -> None:
