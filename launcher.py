@@ -80,10 +80,15 @@ from ui_layout import (
     FORM_ROW_PY,
     LABEL_COL,
     LABEL_GAP,
+    LAUNCH_PATH_H,
+    LAUNCH_PLAY_TIME_H,
+    LAUNCH_STATUS_H,
     SHELL_PAD,
     TAB_PAD,
     app_header,
     center_toplevel,
+    ellipsize,
+    fixed_frame,
     form_field,
     form_hint,
     form_label,
@@ -252,6 +257,7 @@ class MinecraftLauncherApp:
 
         tab_build = ttk.Frame(left_nb, padding=TAB_PAD)
         tab_java = ttk.Frame(left_nb, padding=TAB_PAD)
+        self._tab_build = tab_build
         left_nb.add(tab_build, text="  Сборка  ")
         left_nb.add(tab_java, text="  Java / ОЗУ  ")
 
@@ -374,64 +380,79 @@ class MinecraftLauncherApp:
         launch = ttk.LabelFrame(
             body, text="  Запуск  ", style="Card.TLabelframe", padding=CARD_PAD
         )
-        launch.grid(row=0, column=1, sticky="nsew")
+        launch.grid(row=0, column=1, sticky="new")
         launch.columnconfigure(0, weight=1)
         lr = 0
+        self._last_launch_status = ""
 
         self.status_var = tk.StringVar(value="Загрузка...")
-        self._launch_status_frame = tk.Frame(launch, height=42, bg=self._colors.bg)
+        self._launch_status_frame = fixed_frame(
+            launch, LAUNCH_STATUS_H, bg=self._colors.bg
+        )
         self._launch_status_frame.grid(row=lr, column=0, sticky="ew", pady=(0, 6))
-        self._launch_status_frame.grid_propagate(False)
         self._launch_status_label = tk.Label(
             self._launch_status_frame,
             textvariable=self.status_var,
-            anchor="nw",
+            anchor="w",
             justify="left",
-            wraplength=300,
-            height=2,
             bg=self._colors.bg,
             fg=self._colors.muted,
             font=("Segoe UI", 9),
         )
-        self._launch_status_label.pack(fill="both", expand=True)
+        self._launch_status_label.pack(fill="x", anchor="w")
         lr += 1
         self.progress = ttk.Progressbar(launch, mode="determinate")
         self.progress.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
         lr += 1
 
         self.play_btn = ttk.Button(
-            launch, text="▶  Играть", style="Accent.TButton", command=self._on_play, state="disabled"
+            launch,
+            text="▶  Играть        ",
+            style="Accent.TButton",
+            command=self._on_play,
+            state="disabled",
+            width=16,
         )
         self.play_btn.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
         lr += 1
 
         self.game_status_var = tk.StringVar(value="MC не запущен")
+        self._game_status_frame = fixed_frame(launch, LAUNCH_STATUS_H, bg=self._colors.bg)
+        self._game_status_frame.grid(row=lr, column=0, sticky="ew")
         self.game_status_label = ttk.Label(
-            launch, textvariable=self.game_status_var, style="Status.TLabel"
+            self._game_status_frame,
+            textvariable=self.game_status_var,
+            style="Status.TLabel",
         )
-        self.game_status_label.grid(row=lr, column=0, sticky="w")
+        self.game_status_label.pack(anchor="w")
         lr += 1
         self.play_time_var = tk.StringVar(value="")
-        ttk.Label(launch, textvariable=self.play_time_var, style="Hint.TLabel").grid(
-            row=lr, column=0, sticky="w", pady=(0, 10)
-        )
+        self._play_time_frame = fixed_frame(launch, LAUNCH_PLAY_TIME_H, bg=self._colors.bg)
+        self._play_time_frame.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(
+            self._play_time_frame,
+            textvariable=self.play_time_var,
+            style="Hint.TLabel",
+        ).pack(anchor="w")
         lr += 1
 
         action_row = ttk.Frame(launch)
         action_row.grid(row=lr, column=0, sticky="ew", pady=(0, 10))
-        action_row.columnconfigure(0, weight=1)
-        action_row.columnconfigure(1, weight=1)
+        for col in range(2):
+            action_row.columnconfigure(col, weight=1, uniform="launch_act", minsize=130)
         ttk.Button(
             action_row,
             text="Каталог Modrinth",
             style="Tool.TButton",
             command=self._open_modrinth,
+            width=18,
         ).grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
         self.discord_btn = ttk.Button(
             action_row,
             text="Discord",
             style="Tool.TButton",
             command=self._on_discord_button,
+            width=18,
         )
         self.discord_btn.grid(row=0, column=1, sticky="ew")
         add_tooltip(
@@ -443,7 +464,7 @@ class MinecraftLauncherApp:
         menu_row = ttk.Frame(launch)
         menu_row.grid(row=lr, column=0, sticky="ew", pady=(0, 8))
         for col in range(3):
-            menu_row.columnconfigure(col, weight=1, uniform="menu")
+            menu_row.columnconfigure(col, weight=1, uniform="menu", minsize=88)
         self.content_mb = self._create_content_menubutton(menu_row)
         self.content_mb.grid(row=0, column=0, sticky="ew", padx=(0, BTN_GAP))
         self.utils_mb = self._create_utils_menubutton(menu_row)
@@ -452,8 +473,13 @@ class MinecraftLauncherApp:
         self.folders_mb.grid(row=0, column=2, sticky="ew")
         lr += 1
 
-        self.path_label = ttk.Label(launch, text="", style="Hint.TLabel", wraplength=260)
-        self.path_label.grid(row=lr, column=0, sticky="w", pady=(4, 0))
+        self._path_frame = fixed_frame(launch, LAUNCH_PATH_H, bg=self._colors.bg)
+        self._path_frame.grid(row=lr, column=0, sticky="ew", pady=(4, 0))
+        self._path_frame.columnconfigure(0, weight=1)
+        self.path_label = ttk.Label(
+            self._path_frame, text="", style="Hint.TLabel", anchor="w"
+        )
+        self.path_label.grid(row=0, column=0, sticky="ew")
         self._update_path_label()
 
         foot = ttk.Frame(shell)
@@ -483,18 +509,13 @@ class MinecraftLauncherApp:
         self._register_tooltips()
         self._update_content_menu_state()
         self._update_discord_button()
-        self.root.after(50, self._fit_window_to_content)
 
-    def _ensure_window_height(self, min_h: int) -> None:
-        if self.root.winfo_height() < min_h:
-            w = max(self.root.winfo_width(), 980)
-            self._window_h = min_h
-            self.root.geometry(f"{w}x{min_h}")
-            center_toplevel(self.root, width=w, height=min_h)
-
-    def _fit_window_to_content(self) -> None:
-        self.root.update_idletasks()
-        self._ensure_window_height(640)
+    def _set_launch_status(self, text: str) -> None:
+        t = ellipsize(text, 72)
+        if t == self._last_launch_status:
+            return
+        self._last_launch_status = t
+        self.status_var.set(t)
 
     def _setup_drag_drop(self) -> None:
         enable_jar_drop(
@@ -511,7 +532,7 @@ class MinecraftLauncherApp:
                 parent=self.root,
             )
             return
-        self.status_var.set(f"Добавлено в mods/: {', '.join(names[:3])}" + (
+        self._set_launch_status(f"Добавлено в mods/: {', '.join(names[:3])}" + (
             "…" if len(names) > 3 else ""
         ))
 
@@ -520,7 +541,7 @@ class MinecraftLauncherApp:
             return None
         try:
             path = create_auto_backup(self.current_build, LAUNCHER_DIR, tag)
-            self.status_var.set(f"Автобэкап: {path.name}")
+            self._set_launch_status(f"Автобэкап: {path.name}")
             return path
         except BackupError as exc:
             messagebox.showwarning(
@@ -562,7 +583,7 @@ class MinecraftLauncherApp:
         self._game_log_collector.record_session_end(exit_code)
         self._sync_discord_presence(running=False)
         if exit_code not in (None, 0):
-            self.status_var.set(f"Игра завершилась (код {exit_code})")
+            self._set_launch_status(f"Игра завершилась (код {exit_code})")
 
     def _update_play_time_label(self) -> None:
         if not self.current_build:
@@ -603,17 +624,12 @@ class MinecraftLauncherApp:
         for widget, text in tips:
             add_tooltip(widget, text)
 
-        add_tooltip(
-            self.root,
-            "Перетащите .jar на окно — файлы скопируются в mods/ текущей сборки",
-        )
         add_tooltip(self.btn_favorite_version, "Закрепить версию вверху списка")
 
     def _update_path_label(self) -> None:
         game = self._game_dir()
-        self.path_label.configure(
-            text=f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
-        )
+        line = f"Сборка: {self.current_build.name if self.current_build else '?'} · {game}"
+        self.path_label.configure(text=ellipsize(line, 64))
 
     def _open_logs_game_tab(self) -> None:
         self._open_logs_and_crashes(initial_tab=1)
@@ -857,7 +873,7 @@ class MinecraftLauncherApp:
             return
         self._refresh_build_list()
         self._select_build(build)
-        self.status_var.set(f"Создана копия «{build.name}»")
+        self._set_launch_status(f"Создана копия «{build.name}»")
 
     def _create_build(self) -> None:
         if not self.versions:
@@ -882,7 +898,7 @@ class MinecraftLauncherApp:
             save_build(build, LAUNCHER_DIR)
             self._refresh_build_list()
             self._select_build(build)
-            self.status_var.set(f"Создана сборка «{build.name}» · MC {mc}")
+            self._set_launch_status(f"Создана сборка «{build.name}» · MC {mc}")
 
         NewBuildDialog(
             self.root,
@@ -912,7 +928,7 @@ class MinecraftLauncherApp:
         self._refresh_build_list()
         remaining = list_builds(LAUNCHER_DIR)
         self._select_build(remaining[0])
-        self.status_var.set("Сборка удалена")
+        self._set_launch_status("Сборка удалена")
 
     def _on_jvm_preset(self, _event: object | None = None) -> None:
         args = preset_args(self.jvm_preset_var.get())
@@ -968,9 +984,13 @@ class MinecraftLauncherApp:
             self.loader_version_combo.grid(
                 row=5, column=FIELD_COL, sticky="ew", pady=FORM_ROW_PY
             )
+            if tab := getattr(self, "_tab_build", None):
+                tab.rowconfigure(5, minsize=0)
         else:
             self.loader_version_label.grid_remove()
             self.loader_version_combo.grid_remove()
+            if tab := getattr(self, "_tab_build", None):
+                tab.rowconfigure(5, minsize=0)
 
     def _invalidate_modpack_launch(self) -> None:
         if self.current_build:
@@ -1050,21 +1070,21 @@ class MinecraftLauncherApp:
             game_running = self._game_tracker.running
         if game_running:
             self.play_btn.configure(
-                text="■  Стоп",
+                text="■  Стоп          ",
                 style="Stop.TButton",
                 command=self._kill_game,
                 state="normal",
             )
         elif self._launch_busy:
             self.play_btn.configure(
-                text="▶  Играть",
+                text="▶  Играть        ",
                 style="Accent.TButton",
                 command=self._on_play,
                 state="disabled",
             )
         else:
             self.play_btn.configure(
-                text="▶  Играть",
+                text="▶  Играть        ",
                 style="Accent.TButton",
                 command=self._on_play,
                 state="normal" if self._can_start_play() else "disabled",
@@ -1072,7 +1092,7 @@ class MinecraftLauncherApp:
 
     def _kill_game(self) -> None:
         if self._game_tracker.kill():
-            self.status_var.set("Minecraft закрыт")
+            self._set_launch_status("Minecraft закрыт")
         else:
             messagebox.showinfo("Игра", "Процесс Minecraft не найден.", parent=self.root)
 
@@ -1085,6 +1105,13 @@ class MinecraftLauncherApp:
             self._launch_status_label.configure(
                 bg=self._colors.bg, fg=self._colors.muted
             )
+        for attr in ("_game_status_frame", "_play_time_frame", "_path_frame"):
+            fr = getattr(self, attr, None)
+            if fr is not None:
+                try:
+                    fr.configure(bg=self._colors.bg)
+                except tk.TclError:
+                    pass
 
     def _export_backup(self) -> None:
         if not self.current_build:
@@ -1286,7 +1313,7 @@ class MinecraftLauncherApp:
         save_build(build, LAUNCHER_DIR)
         self._pending_modpack_build = build
         self._refresh_build_list()
-        self.status_var.set(f"Создана сборка «{build.name}», установка modpack...")
+        self._set_launch_status(f"Создана сборка «{build.name}», установка modpack...")
         return build.game_dir(LAUNCHER_DIR)
 
     def _schedule_modpack_profile(self, profile: dict[str, str]) -> None:
@@ -1343,7 +1370,7 @@ class MinecraftLauncherApp:
 
         self._save_current_build()
         lv_note = f", запуск: {launch_version}" if launch_version else ""
-        self.status_var.set(
+        self._set_launch_status(
             f"Сборка «{self.current_build.name}» — modpack "
             f"{mc_version or '?'} / {loader}{lv_note}"
         )
@@ -1377,7 +1404,7 @@ class MinecraftLauncherApp:
 
     def _on_versions_loaded(self, versions: list[dict]) -> None:
         self.versions = versions
-        self.status_var.set("Выберите сборку, настройки и нажмите «Играть»")
+        self._set_launch_status("Выберите сборку, настройки и нажмите «Играть»")
         self._apply_filter()
         self._refresh_loader_versions_async()
         if self.versions:
@@ -1471,15 +1498,7 @@ class MinecraftLauncherApp:
 
     def _make_callback(self) -> dict:
         def set_status(text: str) -> None:
-            short = text if len(text) <= 96 else text[:93] + "…"
-
-            def apply(t: str = short) -> None:
-                if t == getattr(self, "_last_launch_status", ""):
-                    return
-                self._last_launch_status = t
-                self.status_var.set(t)
-
-            self.root.after(0, apply)
+            self.root.after(0, lambda t=text: self._set_launch_status(t))
 
         def set_max(value: int) -> None:
             self.root.after(0, lambda v=value: self.progress.configure(maximum=v))
@@ -1514,7 +1533,7 @@ class MinecraftLauncherApp:
         ):
             self.root.after(
                 0,
-                lambda vid=modpack_id: self.status_var.set(
+                lambda vid=modpack_id: self._set_launch_status(
                     f"Версия modpack готова ({vid})"
                 ),
             )
@@ -1532,7 +1551,7 @@ class MinecraftLauncherApp:
         loader_name = mod_loader.get_name()
         self.root.after(
             0,
-            lambda mn=loader_name, mv=mc_version: self.status_var.set(
+            lambda mn=loader_name, mv=mc_version: self._set_launch_status(
                 f"Установка {mn} для {mv}..."
             ),
         )
@@ -1658,7 +1677,7 @@ class MinecraftLauncherApp:
                 )
                 self.root.after(
                     0,
-                    lambda lv=launch_version, bn=build_name: self.status_var.set(
+                    lambda lv=launch_version, bn=build_name: self._set_launch_status(
                         f"Запуск {lv} · {bn}..."
                     ),
                 )
@@ -1830,11 +1849,12 @@ class MinecraftLauncherApp:
             return
         try:
             if self._discord_connecting:
-                self.discord_btn.configure(text="Отмена Discord")
+                label = "Отмена Discord"
             elif discord_presence.is_connected():
-                self.discord_btn.configure(text="Discord ●")
+                label = "Discord ●"
             else:
-                self.discord_btn.configure(text="Discord")
+                label = "Discord"
+            self.discord_btn.configure(text=f"{label:<18}"[:18])
         except tk.TclError:
             pass
 
@@ -1846,7 +1866,7 @@ class MinecraftLauncherApp:
             self.settings.discord_presence_enabled = False
             self.settings.save(LAUNCHER_DIR)
             self._update_discord_button()
-            self.status_var.set("Подключение к Discord отменено")
+            self._set_launch_status("Подключение к Discord отменено")
             return
 
         if discord_presence.is_connected():
@@ -1854,7 +1874,7 @@ class MinecraftLauncherApp:
             self.settings.discord_presence_enabled = False
             self.settings.save(LAUNCHER_DIR)
             self._update_discord_button()
-            self.status_var.set("Discord отключён")
+            self._set_launch_status("Discord отключён")
             return
 
         if not discord_presence.is_configured():
@@ -1867,7 +1887,7 @@ class MinecraftLauncherApp:
 
         self.settings.discord_presence_enabled = True
         self.settings.save(LAUNCHER_DIR)
-        self.status_var.set("Подключение к Discord…")
+        self._set_launch_status("Подключение к Discord…")
         self._connect_discord_presence(show_errors=True)
 
     def _connect_discord_presence(self, *, show_errors: bool = False) -> None:
@@ -1902,7 +1922,7 @@ class MinecraftLauncherApp:
                 if ok:
                     discord_presence.set_idle(version=LAUNCHER_VERSION)
                     log_info("Discord Rich Presence connected")
-                    self.status_var.set("Discord подключён")
+                    self._set_launch_status("Discord подключён")
                     return
 
                 self.settings.discord_presence_enabled = False
@@ -1919,9 +1939,9 @@ class MinecraftLauncherApp:
                         parent=self.root,
                     )
                 if err == "отменено":
-                    self.status_var.set("Подключение к Discord отменено")
+                    self._set_launch_status("Подключение к Discord отменено")
                 else:
-                    self.status_var.set("Discord не подключён")
+                    self._set_launch_status("Discord не подключён")
 
             try:
                 self.root.after(0, apply)
@@ -1980,7 +2000,7 @@ class MinecraftLauncherApp:
             if not info:
                 return
             self._pending_update = info
-            self.status_var.set(
+            self._set_launch_status(
                 f"Доступна версия {info.latest} — кнопка «Обновление»"
             )
             if hasattr(self, "btn_update"):
@@ -2003,7 +2023,7 @@ class MinecraftLauncherApp:
         )
 
     def _apply_update(self, info: UpdateInfo) -> None:
-        self.status_var.set(f"Скачивание v{info.latest}...")
+        self._set_launch_status(f"Скачивание v{info.latest}...")
         self._update_in_progress = True
 
         def progress(done: int, total: int) -> None:
@@ -2013,7 +2033,7 @@ class MinecraftLauncherApp:
             else:
                 mb = done / (1024 * 1024)
                 text = f"Скачивание v{info.latest}… {mb:.1f} МБ"
-            self.root.after(0, lambda t=text: self.status_var.set(t))
+            self.root.after(0, lambda t=text: self._set_launch_status(t))
 
         def worker() -> Path:
             return apply_self_update(info, on_progress=progress)
@@ -2024,7 +2044,7 @@ class MinecraftLauncherApp:
             if hasattr(self, "btn_update"):
                 self.btn_update.configure(text="Утилиты")
             if getattr(sys, "frozen", False):
-                self.status_var.set("Перезапуск…")
+                self._set_launch_status("Перезапуск…")
                 self.root.update_idletasks()
                 try:
                     self.root.destroy()
@@ -2036,7 +2056,7 @@ class MinecraftLauncherApp:
                 f"Файл сохранён:\n{dest}\n\nЗапущена новая версия.",
                 parent=self.root,
             )
-            self.status_var.set("Готово")
+            self._set_launch_status("Готово")
 
         run_background(
             self.root,
@@ -2052,12 +2072,12 @@ class MinecraftLauncherApp:
             f"Не удалось установить обновление:\n{exc}",
             parent=self.root,
         )
-        self.status_var.set("Ошибка обновления")
+        self._set_launch_status("Ошибка обновления")
 
     def _check_updates_manual(self) -> None:
         if getattr(self, "_update_in_progress", False):
             return
-        self.status_var.set("Проверка обновлений...")
+        self._set_launch_status("Проверка обновлений...")
         if self._pending_update:
             info = self._pending_update
             if self._confirm_apply_update(info):
@@ -2079,7 +2099,7 @@ class MinecraftLauncherApp:
                     f"Установлена актуальная версия ({LAUNCHER_VERSION}).",
                     parent=self.root,
                 )
-                self.status_var.set("Готово")
+                self._set_launch_status("Готово")
 
         run_background(
             self.root,

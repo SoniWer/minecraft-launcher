@@ -26,6 +26,35 @@ LABEL_GAP = (0, 10)
 # Кнопки в ряд
 BTN_GAP = 6
 
+# Главное окно: фиксированные высоты блока «Запуск», чтобы строки не прыгали
+LAUNCH_STATUS_H = 22
+LAUNCH_PATH_H = 34
+LAUNCH_PLAY_TIME_H = 18
+
+
+def ellipsize(text: str, max_len: int = 72) -> str:
+    """Одна строка без переноса; длинный текст обрезается."""
+    flat = " ".join(str(text).split())
+    if len(flat) <= max_len:
+        return flat
+    return flat[: max_len - 1] + "…"
+
+
+def fixed_frame(
+    parent: ttk.Misc,
+    height: int,
+    *,
+    bg: str | None = None,
+) -> tk.Frame:
+    """Контейнер с фиксированной высотой (grid_propagate отключён)."""
+    kw: dict = {"height": height}
+    if bg is not None:
+        kw["bg"] = bg
+    frame = tk.Frame(parent, **kw)
+    frame.grid_propagate(False)
+    frame.pack_propagate(False)
+    return frame
+
 
 def setup_form_grid(container: ttk.Misc, *, label_minsize: int = LABEL_MIN) -> None:
     container.columnconfigure(LABEL_COL, minsize=label_minsize, weight=0)
